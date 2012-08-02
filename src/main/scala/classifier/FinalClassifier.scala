@@ -7,28 +7,6 @@ import parser.ArffJsonInstancesSource
 import common.Path
 import parser.InstancesMappings
 
-object FinalClassifier {
-    def main(args: Array[String]) {
-        val finalGen = new FinalClassifierGenerator(
-            List(
-                AbstractOnlyOddsRatioC45Generator/*,
-                TitleOnlyOddsRatioSVMGenerator,
-                AbstractOnlyLsiSVMGenerator,
-                AbstractOnlyOddsRatioSVMGenerator,
-                JournalOnlyBayesGenerator,
-                TermsOnlyBayesGenerator*/
-            )
-        )
-        
-        val testset = new ArffJsonInstancesFile("final", "test", List())
-        
-        for(topClass <- common.Common.topClasses) {
-            println("\n\nStart evaluating results for topClass: " + topClass)
-            finalGen.classifications(testset, TopClassIs(topClass))
-        }
-    }
-}
-
 class FinalClassifierGenerator(classifierGenerators: List[ClassifierGenerator]) extends ClassifierGenerator {
     val fileAppendix = "final"
     def mapInstances(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition) = inst
