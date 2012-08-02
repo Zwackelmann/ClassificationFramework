@@ -7,7 +7,7 @@ import java.io.File
 import common.Common.FileConversion._
 import java.io.BufferedWriter
 import java.io.FileWriter
-import new_approach.classifier.Classifier
+import classifier.Classifier
 
 object Classification {
     def apply(str: String): Classification = {

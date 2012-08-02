@@ -22,10 +22,10 @@ import model.RawClassification
 import scala.collection.immutable.Iterable
 import model.RawClassification
 import classifier.TargetClassDefinition
-import new_approach.classifier.Classifier
+import classifier.Classifier
 import common.Path.classifierPath
 import common.Path
-import new_approach.classifier.ClassifierGenerator
+import classifier.ClassifierGenerator
 import parser.InstancesMappings
 
 /**

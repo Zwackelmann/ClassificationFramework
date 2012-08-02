@@ -1,7 +1,7 @@
 package script
 import model.RawClassification
 import java.io.File
-import new_approach.classifier.Classifier
+import classifier.Classifier
 
 object Test2 {
     def main(args: Array[String]) {

@@ -1,7 +1,5 @@
 package classifier
 
-import new_approach.classifier.Classifier
-import new_approach.classifier.ClassifierGenerator
 import parser.ArffJsonInstancesSource
 import model.RawClassification
 import format.arff_json.ArffJsonInstance

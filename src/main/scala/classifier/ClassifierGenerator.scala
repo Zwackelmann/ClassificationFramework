@@ -1,6 +1,5 @@
-package new_approach.classifier
+package classifier
 import parser.ArffJsonInstancesSource
-import classifier.TargetClassDefinition
 import parser.ArffJsonInstancesMapping
 import parser.ArffJsonInstancesFile
 import filter.VectorFromDictFilter
@@ -13,10 +12,7 @@ import external.JoachimsSVMLearnApplier
 import external.JoachimsSVMClassifier
 import model.RawClassification
 import parser.InstancesMappings
-import classifier.generator.WekaClassifierGenerator
 import weka.classifiers.bayes.NaiveBayes
-import classifier.generator.WekaClassifierGenerator
-import classifier.WekaClassifier
 import common.ForgetableMap
 import scala.collection.mutable.HashMap
 import weka.classifiers.trees.J48

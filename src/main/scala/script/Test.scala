@@ -11,11 +11,11 @@ import java.io.File
 import filter.OddsRatioFilter
 import classifier.TopClassIs
 import classifier.WekaClassifier
-import new_approach.classifier.ClassifierGenerator
+import classifier.ClassifierGenerator
 import parser.ArffJsonInstancesSource
 import classifier.TargetClassDefinition
 import weka.classifiers.bayes.NaiveBayes
-import new_approach.classifier.Classifier
+import classifier.Classifier
 import filter.NominalizeFilter
 import format.arff_json.DenseArffJsonInstance
 import format.arff_json.ArffJsonHeader

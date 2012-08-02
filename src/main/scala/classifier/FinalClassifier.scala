@@ -1,9 +1,7 @@
-package new_approach.classifier
+package classifier
 import parser.ArffJsonInstancesSource
-import classifier.TargetClassDefinition
 import model.RawClassification
 import parser.ArffJsonInstancesFile
-import classifier.TopClassIs
 import parser.ContentDescription
 import parser.ArffJsonInstancesSource
 import common.Path
