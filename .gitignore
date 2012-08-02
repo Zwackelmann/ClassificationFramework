@@ -1,0 +1,16 @@
+.cache
+.classpath
+.project
+.settings
+.svn
+bin
+data
+lib1
+lib2
+main.jar
+nominalize
+target
+test-results
+testSource
+trainSource
+build
