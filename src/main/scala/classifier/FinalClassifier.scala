@@ -5,7 +5,6 @@ import parser.ArffJsonInstancesFile
 import parser.ContentDescription
 import parser.ArffJsonInstancesSource
 import common.Path
-import parser.InstancesMappings
 
 class FinalClassifierGenerator(classifierGenerators: List[ClassifierGenerator]) extends ClassifierGenerator {
     val fileAppendix = "final"

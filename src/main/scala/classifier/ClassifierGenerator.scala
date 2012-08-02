@@ -11,7 +11,6 @@ import external.GensimLsiFilter
 import external.JoachimsSVMLearnApplier
 import external.JoachimsSVMClassifier
 import model.RawClassification
-import parser.InstancesMappings
 import weka.classifiers.bayes.NaiveBayes
 import common.ForgetableMap
 import scala.collection.mutable.HashMap

@@ -18,15 +18,12 @@ import model.RawClassification
 import parser.ArffJsonInstancesFile
 import common.Common.FileConversion._
 import parser.ArffJsonInstancesSource
-import model.RawClassification
 import scala.collection.immutable.Iterable
-import model.RawClassification
 import classifier.TargetClassDefinition
 import classifier.Classifier
 import common.Path.classifierPath
 import common.Path
 import classifier.ClassifierGenerator
-import parser.InstancesMappings
 
 /**
  * An object to apply Joachim's svm_learn algorithm.
