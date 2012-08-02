@@ -21,6 +21,7 @@ import filter.TfIdfFilter
 import filter.NormalizeVectorFilter
 import external.GensimLsiFilter
 import filter.OddsRatioFilter
+import format.arff_json.InstancesMappings
 
 object ApplyFinalClassifier {
     def main(args: Array[String]) {
@@ -35,7 +36,7 @@ object ApplyFinalClassifier {
             )
         )
         
-        val testset = new ArffJsonInstancesFile("final", "test", List())
+        val testset = new ArffJsonInstancesFile("final-mini", "test", List())
         
         for(topClass <- common.Common.topClasses) {
             println("\n\nStart evaluating results for topClass: " + topClass)
