@@ -8,14 +8,15 @@ import format.arff_json.NominalArffJsonAttribute
 import weka.classifiers.{Classifier => WekaInternalClassifier}
 import java.io.File
 import format.arff_json.ArffJsonHeader
+import parser.ContentDescription
 
 object WekaClassifier {
     def load(file: File) = common.ObjectToFile.readObjectFromFile(file).asInstanceOf[WekaClassifier]
 }
 
 @serializable
-abstract class WekaClassifier(trainBase: ArffJsonInstancesSource, val targetClassDef: TargetClassDefinition, val parent: Option[ClassifierGenerator]) extends Classifier {
-    def this(trainBase: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition, parent: ClassifierGenerator) = 
+abstract class WekaClassifier(trainBase: ArffJsonInstancesSource, val targetClassDef: TargetClassDefinition, val parent: Option[Learner]) extends Classifier(trainBase, targetClassDef, parent) {
+    def this(trainBase: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition, parent: Learner) = 
         this(trainBase, targetClassDef, Some(parent))
         
     def this(trainBase: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition) = 
@@ -25,14 +26,12 @@ abstract class WekaClassifier(trainBase: ArffJsonInstancesSource, val targetClas
     
     val classifier = builtClassifier(trainBase)
     
-    def builtClassifier(source: ArffJsonInstancesSource): WekaInternalClassifier = {
-        val mappedInstances = mapInstances(source, targetClassDef)
-        
-        println("built weka classifier with " + mappedInstances.contentDescription)
+    def builtClassifier(mappedInst: ArffJsonInstancesSource): WekaInternalClassifier = {
+        println("built weka classifier with " + mappedInst.contentDescription)
         
         val instances = {
             val classAttribute = (inst: ArffJsonInstance) => if(targetClassDef(inst.mscClasses)) "yes" else "no"
-            new ArffJsonInstances(mappedInstances, List(Pair(new NominalArffJsonAttribute("target_class", List("no", "yes")), classAttribute))).instances
+            new ArffJsonInstances(mappedInst, List(Pair(new NominalArffJsonAttribute("target_class", List("no", "yes")), classAttribute))).instances
         }
         instances.setClassIndex(0)
         
@@ -42,19 +41,23 @@ abstract class WekaClassifier(trainBase: ArffJsonInstancesSource, val targetClas
         classifier
     }
     
-    def calculateClassifications(inst: ArffJsonInstancesSource) = {
-        val mappedInstances = mapInstances(inst, targetClassDef)
-        println("calculate classifications for " + mappedInstances.contentDescription)
+    def calculateClassifications(mappedInst: ArffJsonInstancesSource) = {
+        println("calculate classifications for " + mappedInst.contentDescription)
         
-        val arffJsonInstances = new ArffJsonInstances(mappedInstances, List())
-        val instances = arffJsonInstances.instances
-        val instancesMetadata = arffJsonInstances.instancesMetadata
+        val arffJsonInstances = {
+            val classAttribute = (inst: ArffJsonInstance) => if(targetClassDef(inst.mscClasses)) "yes" else "no"
+            val arffJsonInstances = new ArffJsonInstances(mappedInst, List(Pair(new NominalArffJsonAttribute("target_class", List("no", "yes")), classAttribute)))
+            arffJsonInstances.instances.setClassIndex(0)
+            arffJsonInstances
+        }
         
-        for (i <- (0 until instances.numInstances()).toIterable) yield {
-            val instance = instances.instance(i)
-            
+        for (i <- (0 until arffJsonInstances.numInstances).toIterable) yield {
+            val instance = arffJsonInstances.instances.instance(i)
             val arffJsonInstance = arffJsonInstances.arffJsonInstance(i)
+            
             val possForYes = classifier.distributionForInstance(instance)(1) // get possibility for "yes"
+            //val possForYes = classifier.classifyInstance(instance)
+            //println(possForYes)
             
             val trueClass = if(targetClassDef(arffJsonInstance.mscClasses)) 1.0 else -1.0
             new RawClassification(arffJsonInstance.id, (possForYes-0.5)*2, trueClass)
@@ -64,4 +67,6 @@ abstract class WekaClassifier(trainBase: ArffJsonInstancesSource, val targetClas
     def save(outFile: File) {
         common.ObjectToFile.writeObjectToFile(this, outFile)
     }
+    
+    override def toString = "WekaClassifier(trainBase: " + trainBaseContentDescription + ", targetClassDef: " + targetClassDef + ")"
 }

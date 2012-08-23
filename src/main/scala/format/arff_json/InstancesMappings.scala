@@ -17,21 +17,26 @@ import filter.NominalizeFilter
 import parser.ArffJsonInstancesSource
 import parser.ContentDescription
 import parser.ArffJsonInstancesFile
+import filter.FilterFactory
+import filter.StorableFilterFactory
+import classifier.Learner
 
-trait InstancesMappings {
-    def apply(base: ArffJsonInstancesSource, target: ContentDescription, targetClassDef: TargetClassDefinition): ArffJsonInstancesSource = {
-            if(base.contentDescription == target) {
-                base
-            } else if(target.file.exists) {
-                new ArffJsonInstancesFile(target)
+object InstancesMappings {
+    def apply(base: ArffJsonInstancesSource, target: ContentDescription, targetClassDef: TargetClassDefinition, learner: Learner): ArffJsonInstancesSource = {
+        if(base.contentDescription == target) {
+            base
+        } else {
+            val instances = learner.deliverInstances(target)
+            if(instances.isDefined) {
+                instances.get
             } else if(base.contentDescription.set != target.set) {
-                def findFirstExistingFileInNewSet(formatHistory: List[String]): ArffJsonInstancesSource = {
+                def findFirstExistingFileInNewSet(formatHistory: List[HistoryItem]): ArffJsonInstancesSource = {
                     val testContentDescription = target.withHistory(formatHistory) 
                     if(testContentDescription.file.exists) new ArffJsonInstancesFile(testContentDescription)
                     else if(formatHistory.size > 0) findFirstExistingFileInNewSet(formatHistory.dropRight(1))
                     else throw new RuntimeException("No appropriate file found to jump between sets " + base.contentDescription.set + " and " + target.set)
                 }
-                apply(findFirstExistingFileInNewSet(target.formatHistory), target, targetClassDef)
+                apply(findFirstExistingFileInNewSet(target.formatHistory), target, targetClassDef, learner)
             } else {
                 if(base.contentDescription.formatHistory.size > target.formatHistory.size) {
                     throw new RuntimeException("TODO?")
@@ -47,11 +52,29 @@ trait InstancesMappings {
                     throw new RuntimeException("Inconsistent history")
                 }
                 
-                val filterToApply = target.formatHistory.last
+                val currentFilterFactory = target.formatHistory.last
+                val filterFile = filterPath / (target.formatHistory.map(_.historyAppendix).mkString("_") + "_filter")
                 
-                val filterFile = filterPath / (target.base + "_" + filterToApply + "_filter")
+                val _filter = currentFilterFactory match {
+                    case storable: StorableFilterFactory => {
+                        if(filterFile.exists) {
+                            println("load: " + filterFile)
+                            storable.load(filterFile)
+                        } else {
+                            val trainBase = apply(base, target.toTrain.dropLastHistoryItem, targetClassDef, learner)
+                            println("train " + storable.historyAppendix + " filter with " + trainBase.contentDescription)
+                            val filter = storable(trainBase)
+                            filter.save(filterFile)
+                            filter
+                        }
+                    }
+                    case filterFactory: FilterFactory => {
+                        filterFactory(apply(base, target.toTrain.dropLastHistoryItem, targetClassDef, learner))
+                    }
+                    case _ => throw new RuntimeException("HistoryItem must be a FilterFactory")
+                }
                 
-                val _filter = filter(filterToApply) match {
+                /*val _filter = filter(filterToApply, targetClassDef) match {
                     case(filterFun: (ArffJsonInstancesSource => Filter), Some(fileFun: (File => Filter))) => { 
                         val filter = if(!filterFile.exists()) {
                             filterFun(apply(base, target.toTrain.dropLastHistoryItem, targetClassDef))
@@ -65,11 +88,14 @@ trait InstancesMappings {
                     case(filterFun: (ArffJsonInstancesSource => Filter), None) => {
                         filterFun(apply(base, target.toTrain.dropLastHistoryItem, targetClassDef))
                     }
-                }
+                }*/
                 
-                _filter.applyFilter(apply(base, target.dropLastHistoryItem, targetClassDef), targetClassDef)
+                val underlyingInstances = apply(base, target.dropLastHistoryItem, targetClassDef, learner)
+                println("apply " + currentFilterFactory.historyAppendix + " filter on " + target.dropLastHistoryItem)
+                _filter.applyFilter(underlyingInstances, targetClassDef)
             }
         }
+    }
     
-    def filter(filterName: String): Pair[ArffJsonInstancesSource => Filter, Option[File => Filter]]
+    // def filter(filterName: String, targetClassDef: TargetClassDefinition): Pair[ArffJsonInstancesSource => Filter, Option[File => Filter]]
 }

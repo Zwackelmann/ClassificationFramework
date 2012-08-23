@@ -1,40 +1,25 @@
 package script
-import filter.VectorFromDictFilter
-import parser.ArffJsonInstancesFile
-import java.io.File
-import filter.feature_scoreing.FeatureScoreing
-import filter.feature_scoreing.OddsRatio
-import external.JoachimsSVMLearnApplier
-import external.JoachimsSVMClassifyApplier
-import java.io.BufferedReader
-import java.io.FileReader
-import common.Common.FileConversion._
-import model.RawClassification
-import format.arff_json.ArffJsonHeader
 
 object Test3 {
     def main(args: Array[String]) {
-        val inst = new ArffJsonInstancesFile("final", "train", List())
+        val ids = "       0 |       1 |       3 |       5 |       6 |       8 |      11 |      12 |      13 |      14 |      15 |      16 |      17 |      18 |      19 |      20 |      22 |      26 |      28 |      30 |      31 |      32 |      33 |      34 |      35 |      37 |      39 |      40 |      41 |      42 |      43 |      44 |      45 |      46 |      47 |      49 |      51 |      52 |      53 |      54 |      55 |      57 |      58 |      60 |      62 |      65 |      68 |      70 |      74 |      76 |      78 |      80 |      81 |      82 |      83 |      85 |      86 |      90 |      91 |      92 |      93 |      94 |      97 |"
+            .filter(c => !c.isSpaceChar)
+            .split('|')
+            .map(s => s.toInt)
+            .toList
         
-        val targetInst = inst.map(inst => inst.flatMap(elem => 
-                if(elem.mscClasses.exists(_.substring(0,2) == "15")) List(elem) else List()
-            ),
-            (header: ArffJsonHeader) => header,
-            "mapped"
-        )
+        val values = "  9,5628 | 11,1264 |  8,9641 |  9,2285 |  8,3504 |  9,0773 |  7,8902 | 11,0835 | 12,5243 | 10,8323 |  0,0000 | 12,4282 | 11,7536 | 14,8795 | 13,3636 | 11,3953 | 11,4631 |  7,0377 |  8,0370 |  7,4462 |  7,7517 |  9,4962 |  7,2555 |  7,1696 |  7,4298 |  7,3242 |  6,9469 |  7,8301 |  7,1456 |  7,3432 |  9,2596 |  7,7895 |  7,7036 |  7,8082 |  7,1501 |  7,8511 |  8,5177 |  8,5000 |  9,6095 |  9,8565 | 11,6582 | 11,2070 |  8,2116 |  7,5658 |  9,1792 |  7,1656 |  8,1177 |  8,4077 | 10,0226 |  9,8659 |  8,5559 | 12,9018 |  7,8954 |  8,1283 |  9,6078 | 10,8132 |  9,5462 |  8,7652 |  9,3244 |  8,7158 |  9,6758 |  8,7008 | 11,4675 |"
+            .filter(c => !c.isSpaceChar)
+            .split('|')
+            .map(s => s.replaceAllLiterally(",", ".").toDouble)
+            .toList
+            
+        val valueMap = ids.zip(values).toMap
         
-        val numInst = targetInst.numInstances
+        println(valueMap.toList.sortWith((a, b) => a._2 > b._2).take(20).map(_._1))
+        
         
         
     }
 }
-
-
-
-
-
-
-
-
-
 

@@ -1,5 +1,5 @@
 package script
-import classifier.ClassifierGenerator
+import classifier.Learner
 import parser.ArffJsonInstancesSource
 import classifier.TargetClassDefinition
 import common.Path.classifierPath
@@ -9,7 +9,6 @@ import classifier.WekaClassifier
 import model.RawClassification
 import weka.classifiers.bayes.NaiveBayes
 import weka.classifiers.trees.J48
-import classifier.FinalClassifierGenerator
 import parser.ArffJsonInstancesFile
 import classifier.TopClassIs
 import filter.NominalizeFilter
@@ -22,353 +21,258 @@ import filter.NormalizeVectorFilter
 import external.GensimLsiFilter
 import filter.OddsRatioFilter
 import format.arff_json.InstancesMappings
+import parser.ContentDescription
+import classifier.TrainSetSelection
+import format.arff_json.HistoryItem
+import classifier.FinalLearner
+import classifier.FinalLearner2
+import weka.classifiers.meta.AdaBoostM1
 
 object ApplyFinalClassifier {
     def main(args: Array[String]) {
-        val finalGen = new FinalClassifierGenerator(
+        /*val finalGen = new FinalClassifierGenerator(
             List(
-                AbstractOnlyOddsRatioC45Generator/*,
-                TitleOnlyOddsRatioSVMGenerator,
-                AbstractOnlyLsiSVMGenerator,
-                AbstractOnlyOddsRatioSVMGenerator,
+                /*AbstractOnlyOddsRatioC45Generator,
+                TitleOnlyOddsRatioSVMGenerator,*/
+                AbstractOnlyLsiSVMGenerator//,
+                /*AbstractOnlyOddsRatioSVMGenerator,
                 JournalOnlyBayesGenerator,
                 TermsOnlyBayesGenerator*/
             )
+        )*/
+        
+        val testset = new ArffJsonInstancesFile("final", ContentDescription.TestSet, List())
+        val trainset = new ArffJsonInstancesFile("final", ContentDescription.TrainSet, List())
+        
+        // val filter = SelectionFilter(TopClassIs("15"), None, None)(trainset)
+        
+        // filter.applyFilter(testset, TopClassIs("15")).save()
+        // filter.applyFilter(trainset, TopClassIs("15")).save()
+        
+        val lsiAbstractSvmLearner = SvmLearner(
+            new AbstractOnlyLsiHistory(500, "conf5", true, false),
+            Pair(Some(1000), Some(200))
+        )
+        val lsiTitleSvmLearner = SvmLearner(
+            new TitleOnlyLsiHistory(500, "conf5", true, false),
+            Pair(Some(1000), Some(200))
+        )
+        val orAbstractC45Learner = C45Learner(
+            new AbstractOnlyOrHistory(2000, "conf5", false),
+            Pair(Some(1000), Some(200))
+        )
+        val orTitleC45Learner = C45Learner(
+            new TitleOnlyOrHistory(2000, "conf5", false),
+            Pair(Some(1000), Some(200))
+        )
+        val flatteningBayesJournalLearner = FlatteningBayesLearner(
+            new JournalOnlyFlattenedHistory("conf1")
+        )
+        val flatteningBayesKeywordLearner = FlatteningBayesLearner(
+            new KeywordOnlyFlattenedHistory("conf1")
         )
         
-        val testset = new ArffJsonInstancesFile("final-mini", "test", List())
+        val boostedOrAbstractC45Learner = BoostedC45Learner(
+            new AbstractOnlyOrHistory(2500, "conf5", false),
+            Pair(Some(1000), Some(200)),
+            30
+        )
         
-        for(topClass <- common.Common.topClasses) {
+        boostedOrAbstractC45Learner.classifications(testset, TopClassIs("15"))
+        
+        val finalLearner = new FinalLearner2(List(
+            lsiAbstractSvmLearner,
+            lsiTitleSvmLearner,
+            orAbstractC45Learner,
+            orTitleC45Learner,
+            flatteningBayesJournalLearner,
+            flatteningBayesKeywordLearner
+        ))
+        
+        // finalLearner.calculateClassifications(testset, TopClassIs("15"))
+        
+        
+        
+        /*for(topClass <- common.Common.topClasses if topClass == "15") {
             println("\n\nStart evaluating results for topClass: " + topClass)
-            finalGen.classifications(testset, TopClassIs(topClass))
-        }
-    }
-}
-
-object TitleOnlyLsiSVMGenerator extends ClassifierGenerator {
-    val numLsiDims = 100
-    
-    def fileAppendix = "title-only-lsi_-" + numLsiDims + "-svm"
-    @transient lazy val mapping = InstancesMappings.instancesMappings1(0, numLsiDims)
-    
-    def mapInstances(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition) = mapping(
-        inst,
-        inst.contentDescription.withHistory(List("project-0", "vector-conf4", "tf-idf", "normalized", ("lsi-" + numLsiDims))),
-        targetClassDef
-    )
-    
-    def generateClassifier(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition): Classifier = {
-        val classifierFile = classifierPath / (inst.contentDescription.base + "_" + fileAppendix + "_" + targetClassDef.filenameExtension + "_" + JoachimsSVMClassifier.idAppendix)
-        if(!classifierFile.exists()) {
-            val svm = new JoachimsSVMClassifier(
-                Map("-v" -> List("0")),
-                inst,
-                targetClassDef, 
-                this
-            )
             
-            svm.save(classifierFile)
-            svm
-        } else {
-            JoachimsSVMClassifier.load(classifierFile)
-        }
+            lsiSvmLearner.report(testset, TopClassIs(topClass), 0, 0)
+        }*/
     }
 }
 
-object TitleOnlyOddsRatioSVMGenerator extends ClassifierGenerator {
-    val numOddsRatioDims = 2000
-    
-    def fileAppendix = "title-only-odds-ratio-" + numOddsRatioDims + "-svm"
-    @transient lazy val mapping = InstancesMappings.orMappings(0, numOddsRatioDims)
-    
-    def mapInstances(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition) = mapping(
-        inst,
-        inst.contentDescription.withHistory(List("project-0", "vector-conf4", "or-" + numOddsRatioDims)),
-        targetClassDef
-    )
-    
-    def generateClassifier(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition): Classifier = {
-        val classifierFile = classifierPath / (inst.contentDescription.base + "_" + fileAppendix + targetClassDef.filenameExtension + "_" + JoachimsSVMClassifier.idAppendix)
-        if(!classifierFile.exists()) {
-            val svm = new JoachimsSVMClassifier(
-                Map("-v" -> List("0")),
-                inst,
-                targetClassDef, 
-                this
-            )
-            
-            svm.save(classifierFile)
-            svm
-        } else {
-            JoachimsSVMClassifier.load(classifierFile)
-        }
-    }
+
+class TitleOnlyLsiHistory(numLsiDims: Int, vectorConf: String = "conf4", tfIdf: Boolean = true, normalize: Boolean = false) extends LsiHistory((0, "tit"), numLsiDims, vectorConf, tfIdf, normalize)
+class AbstractOnlyLsiHistory(numLsiDims: Int, vectorConf: String = "conf4", tfIdf: Boolean = true, normalize: Boolean = false) extends LsiHistory((1, "abs"), numLsiDims, vectorConf, tfIdf, normalize)
+@serializable
+class LsiHistory(val projection: Pair[Int, String], val numLsiDims: Int, val vectorConf: String = "conf4", val tfIdf: Boolean = true, val normalize: Boolean = false) extends (TargetClassDefinition => List[HistoryItem]) {
+    def apply(targetClassDef: TargetClassDefinition) = List(
+        List(ProjectionFilter(List(projection._1), projection._2)), 
+        List(VectorFromDictFilter(vectorConf)), 
+        if(tfIdf) List(TfIdfFilter()) else List(), 
+        if(normalize) List(NormalizeVectorFilter()) else List(),
+        List(GensimLsiFilter(numLsiDims))
+    ).flatten
 }
 
-object AbstractOnlyLsiSVMGenerator extends ClassifierGenerator {
-    val numLsiDims = 500
-    
-    def fileAppendix = "abstract-only-lsi_-" + numLsiDims + "-svm"
-    @transient lazy val mapping = InstancesMappings.instancesMappings1(1, numLsiDims)
-    
-    def mapInstances(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition) = mapping(
-        inst,
-        inst.contentDescription.withHistory(List("project-1", "vector-conf4", "tf-idf", "normalized", ("lsi-" + numLsiDims))),
-        targetClassDef
-    )
-    
-    def generateClassifier(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition): Classifier = {
-        val classifierFile = classifierPath / (inst.contentDescription.base + "_" + fileAppendix + targetClassDef.filenameExtension + "_" + JoachimsSVMClassifier.idAppendix)
-        if(!classifierFile.exists()) {
-            val svm = new JoachimsSVMClassifier(
-                Map("-v" -> List("0")),
-                inst,
-                targetClassDef, 
-                this
-            )
-            
-            svm.save(classifierFile)
-            svm
-        } else {
-            JoachimsSVMClassifier.load(classifierFile)
-        }
-    }
+class TitleOnlyOrHistory(numOrDims: Int, vectorConf: String = "conf4", normalize: Boolean = false) extends OrHistory((0, "tit"), numOrDims, vectorConf, normalize)
+class AbstractOnlyOrHistory(numOrDims: Int, vectorConf: String = "conf4", normalize: Boolean = false) extends OrHistory((1, "abs"), numOrDims, vectorConf, normalize)
+@serializable
+class OrHistory(val projection: Pair[Int, String], val numOrDims: Int, val vectorConf: String = "conf4", val normalize: Boolean = false) extends (TargetClassDefinition => List[HistoryItem]) {
+    def apply(targetClassDef: TargetClassDefinition) = List(
+        List(ProjectionFilter(List(projection._1), projection._2)), 
+        List(VectorFromDictFilter(vectorConf)), 
+        if(normalize) List(NormalizeVectorFilter()) else List(),
+        List(OddsRatioFilter(targetClassDef, numOrDims))
+    ).flatten
 }
 
-object AbstractOnlyOddsRatioSVMGenerator extends ClassifierGenerator {
-    val numOddsRatioDims = 2000
-    
-    def fileAppendix = "abstract-only-odds-ratio_-" + numOddsRatioDims + "-svm"
-    @transient lazy val mapping = InstancesMappings.orMappings(1, numOddsRatioDims)
-    
-    def mapInstances(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition) = mapping(
-        inst,
-        inst.contentDescription.withHistory(List("project-1", "vector-conf4", "or-" + numOddsRatioDims)),
-        targetClassDef
+
+class JournalOnlyFlattenedHistory(vectorConf: String = "conf1") extends FlattenedHistory((2, "jour"), vectorConf)
+class KeywordOnlyFlattenedHistory(vectorConf: String = "conf1") extends FlattenedHistory((3, "kw"), vectorConf)
+@serializable
+class FlattenedHistory(val projection: Pair[Int, String], val vectorConf: String = "conf1") extends (TargetClassDefinition => List[HistoryItem]) {
+    def apply(targetClassDef: TargetClassDefinition) = List(
+        ProjectionFilter(List(projection._1), projection._2), 
+        NominalizeFilter(vectorConf), 
+        FlattenFilter()
     )
-    
-    def generateClassifier(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition): Classifier = {
-        val classifierFile = classifierPath / (inst.contentDescription.base + "_" + fileAppendix + targetClassDef.filenameExtension + "_" + JoachimsSVMClassifier.idAppendix)
-        if(!classifierFile.exists()) {
-            val svm = new JoachimsSVMClassifier(
-                Map("-v" -> List("0")),
-                inst,
-                targetClassDef, 
-                this
-            )
-            
-            svm.save(classifierFile)
-            svm
-        } else {
-            JoachimsSVMClassifier.load(classifierFile)
-        }
-    }
 }
 
-object AbstractOnlyOddsRatioC45Generator extends ClassifierGenerator {
-    val numOddsRatioDims = 2000
-    
-    def fileAppendix = "abstract-only-odds-ratio_-" + numOddsRatioDims + "-c45"
-    @transient lazy val mapping = InstancesMappings.orMappings(1, numOddsRatioDims)
-    
-    def mapInstances(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition) = mapping(
-        inst,
-        inst.contentDescription.withHistory(List("project-1", "vector-conf4", "or-" + numOddsRatioDims)),
-        targetClassDef
-    )
-    
-    def generateClassifier(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition): Classifier = {
-        val classifierFile = classifierPath / (inst.contentDescription.base + "_" + fileAppendix + targetClassDef.filenameExtension + "_" + JoachimsSVMClassifier.idAppendix)
-        if(!classifierFile.exists()) {
-            val bayes = new WekaClassifier(inst, targetClassDef, this) {
-                def classifierConfig() = new J48()
-            }
-            bayes.save(classifierFile)
-            bayes
-        } else {
-            WekaClassifier.load(classifierFile)
-        }
-    }
-}
 
-object JournalOnlyBayesGenerator extends ClassifierGenerator {
-    def fileAppendix = "journal-only-nominalized-flattened-bayes"
-    
-    @transient lazy val mapping = InstancesMappings.nominalMapping(2)
-    
-    def mapInstances(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition) = mapping(
-        inst,
-        inst.contentDescription.withHistory(List("project-2", "nominalized", "flattened")),
-        targetClassDef
-    )
-    
-    def generateClassifier(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition) = {
-        val classifierFile = classifierPath / (inst.contentDescription.base + "_" + fileAppendix + "_" + targetClassDef.filenameExtension)
+object SvmLearner {
+    def apply(history: TargetClassDefinition => List[HistoryItem], trainSetSelection: Pair[Option[Int], Option[Int]]) = new Learner with TrainSetSelection {
+        val numTargetInst = trainSetSelection._1
+        val numOtherInst = trainSetSelection._2
         
-        val mappedInstances = mapInstances(inst, targetClassDef)
+        def fileAppendix = 
+            "svm_tss-" + 
+            (trainSetSelection._1 match {case Some(v) => v.toString case None => "all"}) + "-" + 
+            (trainSetSelection._2 match {case Some(v) => v.toString case None => "all"})
         
-        if(!classifierFile.exists()) {
-            val bayes = new WekaClassifier(inst, targetClassDef, this) {
-                def classifierConfig() = new NaiveBayes()
-                
-                def aggregateClassifications(fun: (List[Double]) => Double)(groupedClassifications: Map[String, List[RawClassification]]) = {
-                    groupedClassifications.values.toList.map(cl => new RawClassification(
-                        cl(0).id, 
-                        fun(cl.map(_.classification)),
-                        cl(0).realValue
-                    ))
-                }
-                
-                val aggregatedByMax = aggregateClassifications((l: List[Double]) => l.reduceLeft((a, b) => math.max(a, b))) _
-                val aggregatedByAvg = aggregateClassifications((l: List[Double]) => l.reduceLeft((a, b) => a + b) / l.size) _
-                
-                override def calculateClassifications(inst: ArffJsonInstancesSource) = {
-                    val calculated = aggregatedByMax(
-                        super.calculateClassifications(inst)
-                            .toList
-                            .groupBy(c => c.id)
-                    )
-                    
-                    val allIdsWithClass = inst.map(i => (i.id, targetClassDef(i.mscClasses)))
-                    val calculatedIds = calculated.map(_.id)
-                    val missingIdsWithClass = allIdsWithClass.toList.filter(idClass => !calculatedIds.contains(idClass._1))
-                    
-                    val missingClassifications = missingIdsWithClass.map(idClass => new RawClassification(idClass._1, 0, if(idClass._2) 1.0 else -1.0))
-                    calculated ++ missingClassifications
-                }
-            }
-            bayes.save(classifierFile)
-            bayes
-        } else {
-            WekaClassifier.load(classifierFile)
-        }
+        def targetHistory(targetClassDef: TargetClassDefinition) = history(targetClassDef)
+        
+        def trainClassifier(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition): Classifier = new JoachimsSVMClassifier(
+            Map("-v" -> List("0")),
+            inst,
+            targetClassDef, 
+            this
+        )
+        
+        def loadClassifier(file: File) = JoachimsSVMClassifier.load(file)
     }
 }
 
-object TermsOnlyBayesGenerator extends ClassifierGenerator {
-    def fileAppendix = "terms-only-nominalized-flattened-bayes"
-    
-    @transient lazy val mapping = InstancesMappings.nominalMapping(3)
-    
-    def mapInstances(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition) = mapping(
-        inst,
-        inst.contentDescription.withHistory(List("project-3", "nominalized", "flattened")),
-        targetClassDef
-    )
-    
-    def generateClassifier(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition) = {
-        val classifierFile = classifierPath / (inst.contentDescription.base + "_" + fileAppendix + "_" + targetClassDef.filenameExtension)
-        val mappedInstances = mapInstances(inst, targetClassDef)
+object BoostedC45Learner {
+    def apply(history: TargetClassDefinition => List[HistoryItem], trainSetSelection: Pair[Option[Int], Option[Int]], numIterations: Int) = new Learner with TrainSetSelection {
+        val numTargetInst = trainSetSelection._1
+        val numOtherInst = trainSetSelection._2
         
-        if(!classifierFile.exists()) {
-            val bayes = new WekaClassifier(inst, targetClassDef, this) {
-                def classifierConfig() = new NaiveBayes()
-                
-                def aggregateClassifications(fun: (List[Double]) => Double)(groupedClassifications: Map[String, List[RawClassification]]) = {
-                    groupedClassifications.values.toList.map(cl => new RawClassification(
-                        cl(0).id, 
-                        fun(cl.map(_.classification)),
-                        cl(0).realValue
-                    ))
-                }
-                
-                val aggregatedByMax = aggregateClassifications((l: List[Double]) => l.reduceLeft((a, b) => math.max(a, b))) _
-                val aggregatedByAvg = aggregateClassifications((l: List[Double]) => l.reduceLeft((a, b) => a + b) / l.size) _
-                
-                override def calculateClassifications(inst: ArffJsonInstancesSource) = {
-                    val calculated = aggregatedByMax(
-                        super.calculateClassifications(inst)
-                            .toList
-                            .groupBy(c => c.id)
-                    )
-                    
-                    val allIdsWithClass = inst.map(i => (i.id, targetClassDef(i.mscClasses)))
-                    val calculatedIds = calculated.map(_.id)
-                    val missingIdsWithClass = allIdsWithClass.toList.filter(idClass => !calculatedIds.contains(idClass._1))
-                    
-                    val missingClassifications = missingIdsWithClass.map(idClass => new RawClassification(idClass._1, 0, if(idClass._2) 1.0 else -1.0))
-                    calculated ++ missingClassifications
-                }
+         def fileAppendix = 
+            "c45-boost-" + numIterations + "-tss-" + 
+            (trainSetSelection._1 match {case Some(v) => v.toString case None => "all"}) + "-" + 
+            (trainSetSelection._2 match {case Some(v) => v.toString case None => "all"})
+            
+        def targetHistory(targetClassDef: TargetClassDefinition) = history(targetClassDef)
+        
+        def trainClassifier(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition): Classifier = new WekaClassifier(
+            inst, 
+            targetClassDef, 
+            this
+        ) {
+            def classifierConfig() = {
+                val ada = new AdaBoostM1()
+                ada.setClassifier(new J48)
+                ada.setNumIterations(numIterations)
+                ada
             }
-            bayes.save(classifierFile)
-            bayes
-        } else {
-            WekaClassifier.load(classifierFile)
         }
+        
+        def loadClassifier(file: File) = WekaClassifier.load(file)
     }
 }
 
-object InstancesMappings {
-    def nominalMapping(projectId: Int) = new InstancesMappings {
-        def filter(filterName: String) = {
-            filterName match {
-                case project if project == "project-" + projectId => ((_: ArffJsonInstancesSource) => new ProjectionFilter(List(projectId), "project-" + projectId), None)
-                case "nominalized" => ((trainBase: ArffJsonInstancesSource) => {
-                    val filter = new NominalizeFilter.Conf1("nominalized")
-                    filter.expandDict(trainBase)
-                    filter
-                }, Some((filterFile: File) => NominalizeFilter.load(filterFile)))
-                case "flattened" => (
-                    (_: ArffJsonInstancesSource) => new FlattenFilter,
-                    None
-                )
-            }
+object C45Learner {
+    def apply(history: TargetClassDefinition => List[HistoryItem], trainSetSelection: Pair[Option[Int], Option[Int]]) = new Learner with TrainSetSelection {
+        val numTargetInst = trainSetSelection._1
+        val numOtherInst = trainSetSelection._2
+        
+         def fileAppendix = 
+            "c45_tss-" + 
+            (trainSetSelection._1 match {case Some(v) => v.toString case None => "all"}) + "-" + 
+            (trainSetSelection._2 match {case Some(v) => v.toString case None => "all"})
+            
+        def targetHistory(targetClassDef: TargetClassDefinition) = history(targetClassDef)
+        
+        def trainClassifier(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition): Classifier = new WekaClassifier(
+            inst, 
+            targetClassDef, 
+            this
+        ) {
+            def classifierConfig() = new J48()
         }
-    }
-    
-    def instancesMappings1(projectId: Int, numLsiDims: Int) = new InstancesMappings {
-        def filter(filterName: String) = {
-            filterName match {
-                case project if project == "project-" + projectId => ((_: ArffJsonInstancesSource) => new ProjectionFilter(List(projectId), "project-" + projectId), None) 
-                    
-                case "vector-conf4" => ((trainBase: ArffJsonInstancesSource) => {
-                    val filter = new VectorFromDictFilter.Conf4
-                    filter.buildDict(trainBase)
-                    filter
-                }, Some((filterFile: File) => {
-                    VectorFromDictFilter.load(filterFile)
-                }))
-                case "tf-idf" => (
-                    (trainBase: ArffJsonInstancesSource) => new TfIdfFilter(trainBase, "tf-idf"),
-                    Some((filterFile: File) => TfIdfFilter.load(filterFile))
-                )
-                case "normalized" => (
-                    (_: ArffJsonInstancesSource) => new NormalizeVectorFilter,
-                    None
-                )
-                case lsi if lsi == ("lsi-" + numLsiDims) => (
-                    (trainBase: ArffJsonInstancesSource) => {
-                        val filter = new GensimLsiFilter(numLsiDims)
-                        filter.builtModel(trainBase)
-                        filter
-                    },
-                    Some((filterFile: File) => GensimLsiFilter.load(filterFile))
-                )
-                case _ => throw new RuntimeException(filterName + " is no valid filter name")
-            }
-        }
-    }
-    
-    def orMappings(projectId: Int, numOrDims: Int) = new InstancesMappings {
-        def filter(filterName: String) = {
-            filterName match {
-                case project if project == "project-" + projectId => ((_: ArffJsonInstancesSource) => new ProjectionFilter(List(projectId), "project-" + projectId), None) 
-                    
-                case "vector-conf4" => ((trainBase: ArffJsonInstancesSource) => {
-                    val filter = new VectorFromDictFilter.Conf4
-                    filter.buildDict(trainBase)
-                    filter
-                }, Some((filterFile: File) => {
-                    VectorFromDictFilter.load(filterFile)
-                }))
-                case or if or == ("or-" + numOrDims) => (
-                    (trainBase: ArffJsonInstancesSource) => {
-                        new OddsRatioFilter(trainBase, numOrDims, "or-" + numOrDims)
-                    },
-                    Some((filterFile: File) => OddsRatioFilter.load(filterFile))
-                )
-                case _ => throw new RuntimeException(filterName + " is no valid filter name")
-            }
-        }
+        
+        def loadClassifier(file: File) = WekaClassifier.load(file)
     }
 }
+
+object FlatteningBayesLearner {
+    def apply(history: TargetClassDefinition => List[HistoryItem]) = new Learner {
+        def fileAppendix = "flat-bay"
+        def targetHistory(targetClassDef: TargetClassDefinition) = history(targetClassDef)
+        
+        def trainClassifier(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition) = new WekaClassifier(
+            inst, 
+            targetClassDef, 
+            this
+        ) {
+            def classifierConfig() = new NaiveBayes()
+            
+            def aggregateClassifications(fun: (List[Double]) => Double)(groupedClassifications: Map[String, List[RawClassification]]) = {
+                groupedClassifications.values.toList.map(cl => new RawClassification(
+                    cl(0).id, 
+                    fun(cl.map(_.classification)),
+                    cl(0).realValue
+                ))
+            }
+            
+            val aggregatedByMax = aggregateClassifications((l: List[Double]) => l.reduceLeft((a, b) => math.max(a, b))) _
+            val aggregatedByAvg = aggregateClassifications((l: List[Double]) => l.reduceLeft((a, b) => a + b) / l.size) _
+            
+            override def calculateClassifications(inst: ArffJsonInstancesSource) = {
+                val calculated = aggregatedByMax(
+                    super.calculateClassifications(inst)
+                        .toList
+                        .groupBy(c => c.id)
+                )
+                
+                // at this point there are only classifications calculated for all instances that contained at least one list item
+                // if the list where empty the classification will be the average classification of all given classifications... or just 0??
+                val defaultClassification = calculated.map(_.classification).reduceLeft(_ + _) / calculated.size
+                
+                val allIdsWithClass = inst.map(i => (i.id, targetClassDef(i.mscClasses)))
+                println("all: " + allIdsWithClass.size)
+                val calculatedIds = calculated.map(_.id)
+                val missingIdsWithClass = allIdsWithClass.toList.filter(idClass => !calculatedIds.contains(idClass._1))
+                println("calculated: " + calculated.size)
+                println("missing: " + missingIdsWithClass.size)
+                val missingClassifications = missingIdsWithClass.map(idClass => new RawClassification(idClass._1, 0.0, if(idClass._2) 1.0 else -1.0))
+                calculated ++ missingClassifications
+            }
+        }
+        
+        def loadClassifier(file: File) = WekaClassifier.load(file)
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+

@@ -17,16 +17,32 @@ import format.arff_json.DenseArffJsonInstance
 import format.arff_json.NominalArffJsonAttribute
 import parser.ArffJsonInstancesFile
 import parser.ArffJsonInstancesSource
+import format.arff_json.HistoryItem
 
 object NominalizeFilter {
-    class Conf1(val historyAppendix: String) extends NominalizeFilter {
+    def apply(confName: String): FilterFactory = {
+        confName match {
+            case "conf1" => new StorableFilterFactory() {
+                def apply(trainBase: ArffJsonInstancesSource) = {
+                    val filter = new Conf1(this)
+                    filter.expandDict(trainBase)
+                    filter
+                }
+                
+                val historyAppendix = "nominalized-" + confName
+                
+                def load(file: File) = common.ObjectToFile.readObjectFromFile(file).asInstanceOf[NominalizeFilter]
+            }
+            case _ => throw new RuntimeException("Unknown NominalizeFilter configuaration name: " + confName)
+        }
+    }
+    
+    class Conf1(val historyAppendix: HistoryItem) extends NominalizeFilter {
         override def inst2Words(inst: ArffJsonInstance) = inst.data(0).asInstanceOf[List[String]].toSeq
         override def wordFun(word: String) = word.filter(_.isLetter).toLowerCase()
         
         override def attributeName = "journal_index"
     }
-    
-    def load(file: File) = common.ObjectToFile.readObjectFromFile(file).asInstanceOf[NominalizeFilter]
 }
 
 abstract class NominalizeFilter extends GlobalFilter with Serializable {
@@ -48,12 +64,10 @@ abstract class NominalizeFilter extends GlobalFilter with Serializable {
     }
     
     override def applyFilter(source: ArffJsonInstancesSource) = {
-        println("use normalize filter on " + source.contentDescription)
-        
         val word2IndexMap = (for((word, i) <- (orderedDict.zipWithIndex)) yield word -> i).toMap
         
         source.map(
-            elements => (for(inst <- elements) yield {
+            (elements: Iterator[ArffJsonInstance]) => (for(inst <- elements) yield {
                 val words = inst2Words(inst)
                 
                 new DenseArffJsonInstance(

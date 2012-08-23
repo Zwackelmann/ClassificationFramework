@@ -9,39 +9,6 @@ import java.io.BufferedWriter
 import java.io.FileWriter
 import classifier.Classifier
 
-object Classification {
-    def apply(str: String): Classification = {
-        val classification = JSONSerializer.toJSON(str).asInstanceOf[JSONArray]
-        
-        Classification(classification.get(0).asInstanceOf[String], classification.get(1).asInstanceOf[Double], classification.get(2).asInstanceOf[Int])
-    }
-    
-    def apply(paperId: String, classification: Double, trueClass: Double): Classification = {
-        if(classification >= 0 && trueClass >= 0) {
-            new TruePositive(paperId, classification)
-        } else if(classification >= 0 && trueClass < 0.0) {
-            new FalsePositive(paperId, classification)
-        } else if(classification < 0 && trueClass < 0.0) {
-            new TrueNegative(paperId, -classification)
-        } else if(classification < 0 && trueClass >= 0) {
-            new FalseNegative(paperId, -classification)
-        } else {
-            throw new RuntimeException()
-        }
-    }
-}
-
-abstract class Classification(val paperId: String, val classification: Double, val trueClass: Double) extends Serializable {
-    val certainty: Double
-    override def toString = {
-        val a = new JSONArray()
-        a.add(paperId)
-        a.add(classification.toDouble)
-        a.add(trueClass)
-        a.toString
-    }
-}
-
 object RawClassification {
     class Category(val name: String) {
         override def toString = name
@@ -98,8 +65,8 @@ object RawClassification {
         var max: Pair[Double, Double] = null
         
         for(i <- 0 until 20) {
-            val p = Classifier.precision(classifications, t, 0)
-            val r = Classifier.recall(classifications, t, 0)
+            val p = Classifier.precision(classifications.view.map(c => new RawClassification(c.id, c.classification + t, c.realValue)), 0)
+            val r = Classifier.recall(classifications.view.map(c => new RawClassification(c.id, c.classification + t, c.realValue)), 0)
             
             // set new max if f-measure is better
             if(max == null || max._2 < f(p, r)) {
@@ -123,30 +90,87 @@ object RawClassification {
             new RawClassification(c.id, (c.classification - t) / meanDiffToThreshold, c.realValue)
         })
     }
+    
+    def adaBoost(pool: List[Iterable[RawClassification]]) = {
+            
+        val weights = pool(0).map(_.id -> 1.0).toMap
+        def error(classifications: Iterable[RawClassification]) = 
+            ((0.0, 0.0) /: classifications)((old, c) => if(c.hit) (old._1 + weights(c.id), old._2) else (old._1, old._2 + weights(c.id)))
+        
+        def alpha(classificatons: Iterable[RawClassification]) = {
+            val e = error(classificatons)
+            math.log(e._1 / e._2) / 2
+        }
+        
+        def boostStep(
+            pool: List[Iterable[RawClassification]], 
+            weights: Map[String, Double],
+            classifiersAndWeights: List[Pair[Iterable[RawClassification], Double]]
+        ): List[Pair[Iterable[RawClassification], Double]]  = {
+            if(pool.size != 0) {
+                val (bestC, e) = {
+                    val x = pool.map(c => (c, error(c))).minBy(_._2._2)
+                    (x._1, x._2)
+                }
+                
+                val a = alpha(bestC)
+                val newWeights = bestC.map(c => c.id -> (if(c.hit) weights(c.id) * math.sqrt(e._1/e._2) else weights(c.id) * math.sqrt(e._2/e._1))).toMap  
+                
+                boostStep(pool - bestC, newWeights, Pair(bestC, a) :: classifiersAndWeights)
+            } else {
+                classifiersAndWeights
+            }
+        }
+        
+        val x = boostStep(pool, weights, List())
+        
+        val r = x.map(_._1)
+        val w = x.map(_._2)
+        
+        r.transpose.map(classificationList => {
+            require(classificationList.forall(c => c.id == classificationList(0).id))
+            new RawClassification(
+                classificationList(0).id, 
+                ((0.0 /: (classificationList zip w))(
+                    (old, clw) => old + clw._1.classification * clw._2
+                )),
+                classificationList(0).realValue)
+        })
+    }
 }
 
 class RawClassification(val id: String, val classification: Double, val realValue: Double) {
     import RawClassification._
     
-    def truePositive(threshold: Double) = classification > threshold && realValue > 0
-    def falsePositive(threshold: Double) = classification > threshold && realValue <= 0
-    def trueNegative(threshold: Double) = classification <= threshold && realValue <= 0
-    def falseNegative(threshold: Double) = classification <= threshold && realValue > 0
+    def truePositive = classification > 0 && realValue > 0
+    def falsePositive = classification > 0 && realValue <= 0
+    def trueNegative = classification <= 0 && realValue <= 0
+    def falseNegative = classification <= 0 && realValue > 0
     
-    def cat(threshold: Double) = if(truePositive(threshold)) TRUE_POSITIVE
-        else if(falsePositive(threshold)) FALSE_POSITIVE
-        else if(trueNegative(threshold)) TRUE_NEGATIVE
-        else if(falseNegative(threshold)) FALSE_NEGATIVE
+    def hit = truePositive || trueNegative
+    def miss = falsePositive || falseNegative
+    
+    def cat = if(truePositive) TRUE_POSITIVE
+        else if(falsePositive) FALSE_POSITIVE
+        else if(trueNegative) TRUE_NEGATIVE
+        else if(falseNegative) FALSE_NEGATIVE
         else throw new RuntimeException("Invalid category")
     
     override def toString = "RawClassification(%s, %3.4f, %1.1f)".format(id, classification, realValue)
     def toJson = "[\"" + id + "\", " + classification + ", " + realValue + "]"
 }
 
-case class TruePositive(_paperId: String, val certainty: Double) extends Classification(_paperId, 0.5 + (certainty / 2), 1.0)
-case class FalsePositive(_paperId: String, val certainty: Double) extends Classification(_paperId, 0.5 + (certainty / 2), -1.0)
-case class TrueNegative(_paperId: String, val certainty: Double) extends Classification(_paperId, 0.5 - (certainty / 2), -1.0)
-case class FalseNegative(_paperId: String, val certainty: Double) extends Classification(_paperId, 0.5 - (certainty / 2), 1.0)
+
+
+
+
+
+
+
+
+
+
+
 
 
 

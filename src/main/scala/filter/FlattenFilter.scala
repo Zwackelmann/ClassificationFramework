@@ -3,10 +3,19 @@ import parser.ArffJsonInstancesSource
 import format.arff_json.ArffJsonInstance
 import format.arff_json.DenseArffJsonInstance
 import format.arff_json.ArffJsonHeader
+import classifier.TargetClassDefinition
+import format.arff_json.HistoryItem
 
-class FlattenFilter extends GlobalFilter {
-    val historyAppendix = "flattened"
-    
+object FlattenFilter {
+    def apply() = {
+        new FilterFactory() {
+            def apply(trainBase: ArffJsonInstancesSource) = new FlattenFilter(this)
+            val historyAppendix = "flattened"
+        }
+    }
+}
+
+class FlattenFilter(val historyAppendix: HistoryItem) extends GlobalFilter {
     def applyFilter(source: ArffJsonInstancesSource) = {
         require(source.header.attributes.size == 1)
         println("use flatten filter on " + source.contentDescription)

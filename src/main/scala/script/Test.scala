@@ -11,7 +11,6 @@ import java.io.File
 import filter.OddsRatioFilter
 import classifier.TopClassIs
 import classifier.WekaClassifier
-import classifier.ClassifierGenerator
 import parser.ArffJsonInstancesSource
 import classifier.TargetClassDefinition
 import weka.classifiers.bayes.NaiveBayes
@@ -21,22 +20,35 @@ import format.arff_json.DenseArffJsonInstance
 import format.arff_json.ArffJsonHeader
 import format.arff_json.NominalArffJsonAttribute
 import parser.ArffJsonInstancesFile2
+import parser.ContentDescription
+import filter.StorableFilterFactory
+import filter.StorableFilterFactory
+import filter.GlobalFilter
 
 object Test {
     def main(args: Array[String]) {
         val (trainInstances, testInstances) = {
-            lazy val trainSource = new ArffJsonInstancesFile("final", "train", List()).project(List(3), "projected")
-            lazy val testSource = new ArffJsonInstancesFile("final", "test", List()).project(List(3), "projected")
+            lazy val trainSource = new ArffJsonInstancesFile("final", ContentDescription.TrainSet, List()).project(List(3), "projected")
+            lazy val testSource = new ArffJsonInstancesFile("final", ContentDescription.TestSet, List()).project(List(3), "projected")
             
             val nomFilterFile = new File("nominalize")
-            lazy val nomFilter = if(!nomFilterFile.exists()) {
-                val f = new NominalizeFilter.Conf1("nominal")
-                f.expandDict(trainSource)
-                f.save(nomFilterFile)
-                f
+            lazy val nomFilter = (if(!nomFilterFile.exists()) {
+                val fac = NominalizeFilter("conf1")
+                val filter = fac(trainSource)
+                filter match {
+                    case storable: StorableFilterFactory => filter.save(nomFilterFile)
+                    case _ => 
+                }
+                filter
             } else {
-                NominalizeFilter.load(nomFilterFile)
-            }
+                val f = NominalizeFilter("conf1")
+                f match {
+                    case storable: StorableFilterFactory => storable.load(nomFilterFile)
+                    case nonStorable => {
+                        nonStorable(trainSource)
+                    }
+                }
+            }).asInstanceOf[GlobalFilter]
             
             val trainInstances = if(!new File("trainSource").exists) {
                 val flatMapNominalInstances = nomFilter

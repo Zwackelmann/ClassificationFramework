@@ -7,7 +7,6 @@ object Time {
         for(i <- range) {
             fun
         }
-        
         val t = fun
         val time2 = System.currentTimeMillis();
         

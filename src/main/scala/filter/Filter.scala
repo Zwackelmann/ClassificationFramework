@@ -5,6 +5,7 @@ import java.io.File
 import parser.ContentDescription
 import common.Path.filterPath
 import classifier.TargetClassDefinition
+import format.arff_json.HistoryItem
 
 trait Filter {
     def applyFilter(source: ArffJsonInstancesSource, targetClassDefinition: TargetClassDefinition): ArffJsonInstancesSource
@@ -13,5 +14,5 @@ trait Filter {
         common.ObjectToFile.writeObjectToFile(this, outFile)
     }
     
-    def historyAppendix(): String
+    val historyAppendix: HistoryItem
 }

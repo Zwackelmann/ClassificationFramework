@@ -1,14 +1,21 @@
 package filter
 import parser.ArffJsonInstancesSource
 import format.arff_json.ArffJsonHeader
+import format.arff_json.HistoryItem
+import format.arff_json.ArffJsonInstance
 
-class ProjectionFilter(ids: List[Int], val historyAppendix: String) extends GlobalFilter {
+object ProjectionFilter {
+    def apply(ids: List[Int], projectionDesc: String) = new FilterFactory {
+        def apply(trainBase: ArffJsonInstancesSource) = new ProjectionFilter(ids, this)
+        val historyAppendix = "proj-" + projectionDesc
+    }
+}
+
+class ProjectionFilter(ids: List[Int], val historyAppendix: HistoryItem) extends GlobalFilter {
     def applyFilter(source: ArffJsonInstancesSource) = {
-        println("use projection filter on " + source.contentDescription)
-        
         source.map(
-            (arffJsonInstances) => arffJsonInstances.map(inst => inst.project(ids)),
-            (header) => new ArffJsonHeader(
+            (arffJsonInstances: Iterator[ArffJsonInstance]) => arffJsonInstances.map(inst => inst.project(ids)),
+            (header: ArffJsonHeader) => new ArffJsonHeader(
                 header.relationName, 
                 header
                     .attributes

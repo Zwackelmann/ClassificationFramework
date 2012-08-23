@@ -7,6 +7,8 @@ import java.io.File
 import filter.Filter
 import common.Path.arffJsonPath
 import filter.GlobalFilter
+import filter.FilterFactory
+import format.arff_json.HistoryItem
 
 object ArffJsonInstancesSource {
     def apply(_source: Iterable[ArffJsonInstance], _header: ArffJsonHeader, _contentDescription: ContentDescription) = {
@@ -30,21 +32,32 @@ trait ArffJsonInstancesSource extends Iterable[ArffJsonInstance] {
     def numAttributes = header.attributes.size
     def numInstances = iterator.size
     
-    def map(elemFun: Iterator[ArffJsonInstance] => Iterator[ArffJsonInstance], headerFun: ArffJsonHeader => ArffJsonHeader, historyAppendix: String) = new ArffJsonInstancesMapping(
+    def map(elemFun: Iterator[ArffJsonInstance] => Iterator[ArffJsonInstance], headerFun: ArffJsonHeader => ArffJsonHeader, historyAppendix: HistoryItem) = new ArffJsonInstancesMapping(
         this,
         elemFun,
         headerFun,
         historyAppendix
     )
     
-    def project(ids: List[Int], historyAppendix: String) = map(
-        (arffJsonInstances) => arffJsonInstances.map(inst => inst.project(ids)),
-        (header) => new ArffJsonHeader(
+    def map(elemFun: Iterator[ArffJsonInstance] => Iterator[ArffJsonInstance], headerFun: ArffJsonHeader => ArffJsonHeader, _historyAppendix: String): ArffJsonInstancesMapping = map(
+        elemFun,
+        headerFun,
+        new HistoryItem {val historyAppendix = _historyAppendix}
+    )
+    
+    def project(ids: List[Int], historyAppendix: HistoryItem) = map(
+        (arffJsonInstances: Iterator[ArffJsonInstance]) => arffJsonInstances.map(inst => inst.project(ids)),
+        (header: ArffJsonHeader) => new ArffJsonHeader(
             header.relationName, 
             ids.map(id => header.attributes(id)),
             header.metaAttributes
         ),
         historyAppendix
+    )
+    
+    def project(ids: List[Int], _historyAppendix: String): ArffJsonInstancesSource = project(
+        ids, 
+        new HistoryItem() {val historyAppendix = _historyAppendix}
     )
     
     def save(file: File) {

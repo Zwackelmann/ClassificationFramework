@@ -2,14 +2,18 @@ package filter
 import parser.ArffJsonInstancesSource
 import format.arff_json.SparseArffJsonInstance
 import java.io.File
+import format.arff_json.HistoryItem
 
 object NormalizeVectorFilter {
-    def load(file: File) = throw new RuntimeException("A normalize filter cannot be saved")
+    def apply() = {
+        new FilterFactory() {
+            def apply(trainBase: ArffJsonInstancesSource) = new NormalizeVectorFilter(this)
+            val historyAppendix = "norm"
+        }
+    }
 }
 
-class NormalizeVectorFilter extends GlobalFilter {
-    val historyAppendix = "normalized"
-    
+class NormalizeVectorFilter(val historyAppendix: HistoryItem) extends GlobalFilter {
     def applyFilter(source: ArffJsonInstancesSource) = {
         println("use normalized filter " + source.contentDescription)
         

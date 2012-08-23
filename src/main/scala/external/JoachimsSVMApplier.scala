@@ -13,7 +13,6 @@ import common.Common.randomStream
 import format.arff_json.DenseArffJsonInstance
 import net.sf.json.JSONSerializer
 import net.sf.json.JSONArray
-import model.Classification
 import model.RawClassification
 import parser.ArffJsonInstancesFile
 import common.Common.FileConversion._
@@ -23,7 +22,8 @@ import classifier.TargetClassDefinition
 import classifier.Classifier
 import common.Path.classifierPath
 import common.Path
-import classifier.ClassifierGenerator
+import classifier.Learner
+import parser.ContentDescription
 
 /**
  * An object to apply Joachim's svm_learn algorithm.
@@ -106,7 +106,7 @@ object JoachimsSVMClassifyApplier extends ExternalAlgorithmApplier("svm_classify
             if(p.exitValue() == 0) {
                 // println("Execution was successful")
             } else {
-                throw new RuntimeException("An unknown error occured")
+                throw new RuntimeException("An error occured")
             }
         } catch {
             case io: IOException => 
@@ -146,8 +146,8 @@ object JoachimsSVMClassifier {
 }
 
 @serializable
-class JoachimsSVMClassifier(options: Map[String, List[String]], trainBase: ArffJsonInstancesSource, val targetClassDef: TargetClassDefinition, val parent: Option[ClassifierGenerator]) extends Classifier {
-    def this(options: Map[String, List[String]], trainBase: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition, parent: ClassifierGenerator) = 
+class JoachimsSVMClassifier(options: Map[String, List[String]], trainBase: ArffJsonInstancesSource, val targetClassDef: TargetClassDefinition, val parent: Option[Learner]) extends Classifier(trainBase, targetClassDef, parent) {
+    def this(options: Map[String, List[String]], trainBase: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition, parent: Learner) = 
         this(options, trainBase, targetClassDef, Some(parent))
         
     def this(options: Map[String, List[String]], trainBase: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition) = 
@@ -158,25 +158,23 @@ class JoachimsSVMClassifier(options: Map[String, List[String]], trainBase: ArffJ
     
     builtClassifier(trainBase)
     
-    def calculateClassifications(inst: ArffJsonInstancesSource) = new Iterable[RawClassification] {
-        val mappedInstances = mapInstances(inst, targetClassDef)
-        println("calculate classifications for " + mappedInstances.contentDescription)
+    def calculateClassifications(mappedInst: ArffJsonInstancesSource) = new Iterable[RawClassification] {
+        println("calculate classifications for " + mappedInst.contentDescription)
         
         def iterator = JoachimsSVMClassifyApplier(
             options, 
-            mappedInstances, 
+            mappedInst, 
             modelFile, 
             targetClassDef
         ) 
     }
     
-    def builtClassifier(inst: ArffJsonInstancesSource) {
-        val mappedInstances = mapInstances(inst, targetClassDef)
+    def builtClassifier(mappedInst: ArffJsonInstancesSource) {
+        println("train svm classifier with " + mappedInst.contentDescription)
         
-        println("train svm classifier with " + mappedInstances.contentDescription)
         JoachimsSVMLearnApplier(
             options,
-            mappedInstances,
+            mappedInst,
             modelFile,
             targetClassDef
         )
@@ -185,6 +183,8 @@ class JoachimsSVMClassifier(options: Map[String, List[String]], trainBase: ArffJ
     def save(outFile: File) {
         common.ObjectToFile.writeObjectToFile(this, outFile)
     }
+    
+    override def toString = "SvmClassifier(trainBase: " + trainBaseContentDescription + ", targetClassDef: " + targetClassDef + ")"
 }
 
 

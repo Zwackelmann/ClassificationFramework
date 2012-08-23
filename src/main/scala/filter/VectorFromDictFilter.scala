@@ -18,9 +18,31 @@ import scala.collection.mutable.HashMap
 import parser.ArffJsonInstancesFile
 import parser.ArffJsonInstancesSource
 import parser.ArffJsonInstancesMapping
+import format.arff_json.HistoryItem
 
 object VectorFromDictFilter {
-    class Conf1(val historyAppendix: String) extends VectorFromDictFilter {
+    def apply(confName: String) = {
+        new StorableFilterFactory {
+            def apply(trainBase: ArffJsonInstancesSource) = {
+                val filter = confName match {
+                    case "conf1" => new Conf1(this)
+                    case "conf2" => new Conf2(this)
+                    case "conf3" => new Conf3(this)
+                    case "conf4" => new Conf4(this)
+                    case "conf5" => new Conf5(this)
+                    case _ => throw new RuntimeException("Unknown VectorFromDictFilter configuration: " + confName)
+                }
+                filter.buildDict(trainBase)
+                filter
+            }
+            
+            val historyAppendix = "vec-" + confName
+            
+            def load(file: File) = common.ObjectToFile.readObjectFromFile(file).asInstanceOf[VectorFromDictFilter]
+        }
+    }
+    
+    class Conf1(val historyAppendix: HistoryItem) extends VectorFromDictFilter {
         override def inst2Words(inst: ArffJsonInstance) = inst.data(0).asInstanceOf[List[String]].mkString(" ").split("\\s+").toSeq
         
         override val dict = new Dictionary {
@@ -28,7 +50,7 @@ object VectorFromDictFilter {
         }
     }
     
-    class Conf2(val historyAppendix: String) extends VectorFromDictFilter {
+    class Conf2(val historyAppendix: HistoryItem) extends VectorFromDictFilter {
         override def inst2Words(inst: ArffJsonInstance) = inst.data(0).asInstanceOf[List[String]].toSeq
         
         override val dict = new Dictionary {
@@ -36,7 +58,7 @@ object VectorFromDictFilter {
         }
     }
     
-    class Conf3(val historyAppendix: String) extends VectorFromDictFilter {
+    class Conf3(val historyAppendix: HistoryItem) extends VectorFromDictFilter {
         @transient lazy val stemmer = new PorterStemmer
         override def inst2Words(inst: ArffJsonInstance) = {println(inst); inst.data(0).asInstanceOf[String].split("\\s+").toSeq}
         
@@ -47,9 +69,8 @@ object VectorFromDictFilter {
         }
     }
     
-    class Conf4 extends VectorFromDictFilter {
+    class Conf4(val historyAppendix: HistoryItem) extends VectorFromDictFilter {
         @transient lazy val stemmer = new PorterStemmer
-        val historyAppendix = "vector-conf4"
         
         def inst2Words(inst: ArffJsonInstance) = {
             val withoutDoubleDollar = inst.data(0).asInstanceOf[String]
@@ -88,7 +109,41 @@ object VectorFromDictFilter {
         }
     }
     
-    def load(file: File) = common.ObjectToFile.readObjectFromFile(file).asInstanceOf[VectorFromDictFilter]
+    class Conf5(val historyAppendix: HistoryItem) extends VectorFromDictFilter {
+        @transient lazy val stemmer = new PorterStemmer
+        
+        def inst2Words(inst: ArffJsonInstance) = {
+            val withoutDoubleDollar = inst.data(0).asInstanceOf[String]
+                .replaceAllLiterally("$$", "$") // sometimes formulas are wrapped with two dollar signs - replace with one dollar sign
+                
+            val withoutFormulas = """\$([^$]+)\$""".r 
+                .replaceAllIn(
+                    withoutDoubleDollar, 
+                    g =>  ""
+                )
+            
+            val withoutQuotes = """\[([^]]+)\]""".r 
+                .replaceAllIn(
+                    withoutFormulas, 
+                    g => ""
+                )
+            
+            val words = withoutQuotes
+                .replaceAll("""\\[a-zA-Z]+""", "") // remove all commands
+                .replaceAll("""\\[^a-zA-Z]""", "") // remove escaped characters
+                .split("[\\s\\.,]+").toSeq // next word on space full stop or comma
+                .map(s => s.filter(c => c.isLetter || c.isDigit)) // after split keep only non special characters
+                .filter(s => s != "") // and remove all empty words
+                
+            words
+        }
+        
+        override val dict = new Dictionary {
+            override def wordFun(word: String) = stemmer.stem(word.filter(c => c.isLetter || c.isDigit || c == '$').toLowerCase())
+            override val stopList = new File("data/util/stoplist.txt").lines.toIndexedSeq
+            override def wordCond(word: String) = true
+        }
+    }
 }
 
 @serializable

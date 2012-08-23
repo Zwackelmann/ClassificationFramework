@@ -6,6 +6,7 @@ import net.sf.json.JSONException
 import net.sf.json.JSONObject
 import net.sf.json.JSONArray
 import format.arff_json.ArffJsonInstance
+import common.Time
 
 class ArffJsonInstancesIterator(reader: BufferedReader, header: ArffJsonHeader) extends Iterator[ArffJsonInstance] {
     var buffer: ArffJsonInstance = null
@@ -16,7 +17,9 @@ class ArffJsonInstancesIterator(reader: BufferedReader, header: ArffJsonHeader) 
             buffer = try {
                 ArffJsonInstance(line, header)
             } catch {
-                case _ => ArffJsonInstance(JSONSerializer.toJSON(line).asInstanceOf[JSONArray], header)
+                case e => {
+                    ArffJsonInstance(JSONSerializer.toJSON(line).asInstanceOf[JSONArray], header)
+                }
             }
         } else {
             buffer = null

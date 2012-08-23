@@ -7,9 +7,10 @@ import net.sf.json.JSONSerializer
 import net.sf.json.JSONObject
 import net.sf.json.JSONException
 import common.Path
+import format.arff_json.HistoryItem
 
 class ArffJsonInstancesFile(val contentDescription: ContentDescription) extends ArffJsonInstancesSource {
-    def this(base: String, set: String, formatHistory: List[String]) = this(ContentDescription(base, set, formatHistory))
+    def this(base: String, set: ContentDescription.Set, formatHistory: List[HistoryItem]) = this(ContentDescription(base, set, formatHistory))
     
     def reader = new BufferedReader(new FileReader(file))
     

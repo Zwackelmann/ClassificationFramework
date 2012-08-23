@@ -9,15 +9,18 @@ import java.io.FileReader
 import parser.ArffJsonInstancesFile
 import parser.ArffJsonInstancesSource
 import parser.ArffJsonInstancesSource
+import format.arff_json.HistoryItem
 
 object TfIdfFilter {
-    def load(file: File) = common.ObjectToFile.readObjectFromFile(file).asInstanceOf[TfIdfFilter]
+    def apply() = new StorableFilterFactory {
+        def apply(trainBase: ArffJsonInstancesSource) = new TfIdfFilter(trainBase, this)
+        val historyAppendix = "tf-idf"
+        def load(file: File) = common.ObjectToFile.readObjectFromFile(file).asInstanceOf[TfIdfFilter]
+    }
 }
 
 @serializable
-class TfIdfFilter(source: ArffJsonInstancesSource, val historyAppendix: String) extends GlobalFilter {
-    println("train tf-idf filter with " + source.contentDescription)
-    
+class TfIdfFilter(source: ArffJsonInstancesSource, val historyAppendix: HistoryItem) extends GlobalFilter {
     val (df, numDocuments) = {
         val df = new HashMap[Int, Int] {
             override def default(key: Int) = 0
@@ -35,8 +38,6 @@ class TfIdfFilter(source: ArffJsonInstancesSource, val historyAppendix: String) 
     }
     
     def applyFilter(source: ArffJsonInstancesSource) = {
-        println("use tf-idf filter on " + source.contentDescription)
-        
         source.map(
             elemFun = elements => elements.map(inst => {
                 val data = for((key, value) <- inst.sparseData) yield {

@@ -23,12 +23,10 @@ object ArffJsonInstance {
         json.get(1) match {
             case arr: JSONArray => {
                 val data = jsonToScalaType(arr).asInstanceOf[List[Any]]
-                
                 new DenseArffJsonInstance(metadata(0).asInstanceOf[String], metadata(1).asInstanceOf[List[String]], data)
             }
             case obj: JSONObject => {
                 val data = jsonToScalaType(obj).asInstanceOf[Map[String, Any]].map(x => x._1.toInt -> x._2)
-                
                 new SparseArffJsonInstance(metadata(0).asInstanceOf[String], metadata(1).asInstanceOf[List[String]], data, numAttributes)
             }
             case _ => throw new RuntimeException()
@@ -36,7 +34,6 @@ object ArffJsonInstance {
     }
     
     def apply(json: JSONArray, header: ArffJsonHeader): ArffJsonInstance = apply(json, header.attributes.size)
-    
     def apply(line: String, header: ArffJsonHeader) = ArffJsonParser.parse(line, header.attributes.length)
     
     def apply(id: String, mscClasses: List[String], data: List[Any], sparse: Boolean) = {

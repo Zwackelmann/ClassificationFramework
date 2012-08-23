@@ -139,7 +139,6 @@ object ArffJsonParser {
                 case 16 => c match { // expect a char for string value
                     case '\\' => 
                         state = 162
-                        println("foo")
                     case c if c != '"' => valueBuffer.append(c)
                         println(c)
                     case '"' => // key-value pair found
@@ -177,7 +176,7 @@ object ArffJsonParser {
                 }
                 case 20 => c match { // reading dense data => expect a '"' for a string value or a digit for a double value
                     case '"' => state = 21
-                    case c if c.isDigit => 
+                    case c => 
                         valueBuffer.append(c)
                         state = 23
                 }
