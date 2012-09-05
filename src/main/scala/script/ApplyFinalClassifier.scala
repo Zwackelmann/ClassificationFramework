@@ -27,77 +27,58 @@ import format.arff_json.HistoryItem
 import classifier.FinalLearner
 import classifier.FinalLearner2
 import weka.classifiers.meta.AdaBoostM1
+import format.arff_json.ArffJsonInstance
 
 object ApplyFinalClassifier {
     def main(args: Array[String]) {
-        /*val finalGen = new FinalClassifierGenerator(
-            List(
-                /*AbstractOnlyOddsRatioC45Generator,
-                TitleOnlyOddsRatioSVMGenerator,*/
-                AbstractOnlyLsiSVMGenerator//,
-                /*AbstractOnlyOddsRatioSVMGenerator,
-                JournalOnlyBayesGenerator,
-                TermsOnlyBayesGenerator*/
-            )
-        )*/
-        
         val testset = new ArffJsonInstancesFile("final", ContentDescription.TestSet, List())
         val trainset = new ArffJsonInstancesFile("final", ContentDescription.TrainSet, List())
         
-        // val filter = SelectionFilter(TopClassIs("15"), None, None)(trainset)
-        
-        // filter.applyFilter(testset, TopClassIs("15")).save()
-        // filter.applyFilter(trainset, TopClassIs("15")).save()
-        
-        val lsiAbstractSvmLearner = SvmLearner(
-            new AbstractOnlyLsiHistory(500, "conf5", true, false),
-            Pair(Some(1000), Some(200))
-        )
-        val lsiTitleSvmLearner = SvmLearner(
-            new TitleOnlyLsiHistory(500, "conf5", true, false),
-            Pair(Some(1000), Some(200))
-        )
-        val orAbstractC45Learner = C45Learner(
-            new AbstractOnlyOrHistory(2000, "conf5", false),
-            Pair(Some(1000), Some(200))
-        )
-        val orTitleC45Learner = C45Learner(
-            new TitleOnlyOrHistory(2000, "conf5", false),
-            Pair(Some(1000), Some(200))
-        )
-        val flatteningBayesJournalLearner = FlatteningBayesLearner(
-            new JournalOnlyFlattenedHistory("conf1")
-        )
-        val flatteningBayesKeywordLearner = FlatteningBayesLearner(
-            new KeywordOnlyFlattenedHistory("conf1")
-        )
-        
-        val boostedOrAbstractC45Learner = BoostedC45Learner(
-            new AbstractOnlyOrHistory(2500, "conf5", false),
-            Pair(Some(1000), Some(200)),
-            30
-        )
-        
-        boostedOrAbstractC45Learner.classifications(testset, TopClassIs("15"))
-        
         val finalLearner = new FinalLearner2(List(
-            lsiAbstractSvmLearner,
-            lsiTitleSvmLearner,
-            orAbstractC45Learner,
-            orTitleC45Learner,
-            flatteningBayesJournalLearner,
-            flatteningBayesKeywordLearner
+            // lsi + svm
+            SvmLearner(
+                new AbstractOnlyLsiHistory(500, "conf5", true, false),
+                Pair(Some(1000), Some(200))
+            ), 
+            SvmLearner(
+                new TitleOnlyLsiHistory(250, "conf5", true, false),
+                Pair(Some(1000), Some(200))
+            ), 
+            // or + svm
+            SvmLearner(
+                new AbstractOnlyOrHistory(1.0),
+                Pair(Some(1000), Some(200))
+            ), 
+            SvmLearner(
+                new TitleOnlyOrHistory(1.0),
+                Pair(Some(1000), Some(200))
+            ), 
+            // or + boosted c45
+            BoostedC45Learner(
+                new AbstractOnlyOrHistory(2000),
+                Pair(Some(1000), Some(200)),
+                30
+            ), 
+            BoostedC45Learner(
+                new TitleOnlyOrHistory(1.0),
+                Pair(Some(1000), Some(200)), 
+                30
+            ),
+            BoostedC45Learner(
+                new JournalOnlyOrHistory(1.0),
+                Pair(Some(1000), Some(200)),
+                30
+            ), 
+            BoostedC45Learner(
+                new TermsOnlyOrHistory(1.0),
+                Pair(Some(1000), Some(200)),
+                30
+            )
         ))
         
-        // finalLearner.calculateClassifications(testset, TopClassIs("15"))
-        
-        
-        
-        /*for(topClass <- common.Common.topClasses if topClass == "15") {
-            println("\n\nStart evaluating results for topClass: " + topClass)
-            
-            lsiSvmLearner.report(testset, TopClassIs(topClass), 0, 0)
-        }*/
+        for(c <- common.Common.topClasses if c.toInt >= 0 && c.toInt < 10) { 
+            finalLearner.calculateClassifications(testset, TopClassIs(c))
+        }
     }
 }
 
@@ -115,15 +96,17 @@ class LsiHistory(val projection: Pair[Int, String], val numLsiDims: Int, val vec
     ).flatten
 }
 
-class TitleOnlyOrHistory(numOrDims: Int, vectorConf: String = "conf4", normalize: Boolean = false) extends OrHistory((0, "tit"), numOrDims, vectorConf, normalize)
-class AbstractOnlyOrHistory(numOrDims: Int, vectorConf: String = "conf4", normalize: Boolean = false) extends OrHistory((1, "abs"), numOrDims, vectorConf, normalize)
+class TitleOnlyOrHistory(orThreshold: Double, vectorConf: String = "conf4", normalize: Boolean = false) extends OrHistory((0, "tit"), orThreshold, vectorConf, normalize)
+class AbstractOnlyOrHistory(orThreshold: Double, vectorConf: String = "conf4", normalize: Boolean = false) extends OrHistory((1, "abs"), orThreshold, vectorConf, normalize)
+class JournalOnlyOrHistory(orThreshold: Double, vectorConf: String = "conf2", normalize: Boolean = false) extends OrHistory((2, "jour"), orThreshold, vectorConf, normalize)
+class TermsOnlyOrHistory(orThreshold: Double, vectorConf: String = "conf2", normalize: Boolean = false) extends OrHistory((3, "ter"), orThreshold, vectorConf, normalize)
 @serializable
-class OrHistory(val projection: Pair[Int, String], val numOrDims: Int, val vectorConf: String = "conf4", val normalize: Boolean = false) extends (TargetClassDefinition => List[HistoryItem]) {
+class OrHistory(val projection: Pair[Int, String], val orThreshold: Double, val vectorConf: String = "conf4", val normalize: Boolean = false) extends (TargetClassDefinition => List[HistoryItem]) {
     def apply(targetClassDef: TargetClassDefinition) = List(
         List(ProjectionFilter(List(projection._1), projection._2)), 
         List(VectorFromDictFilter(vectorConf)), 
         if(normalize) List(NormalizeVectorFilter()) else List(),
-        List(OddsRatioFilter(targetClassDef, numOrDims))
+        List(OddsRatioFilter(targetClassDef, orThreshold))
     ).flatten
 }
 
@@ -168,7 +151,7 @@ object BoostedC45Learner {
         val numTargetInst = trainSetSelection._1
         val numOtherInst = trainSetSelection._2
         
-         def fileAppendix = 
+        def fileAppendix = 
             "c45-boost-" + numIterations + "-tss-" + 
             (trainSetSelection._1 match {case Some(v) => v.toString case None => "all"}) + "-" + 
             (trainSetSelection._2 match {case Some(v) => v.toString case None => "all"})
@@ -246,16 +229,11 @@ object FlatteningBayesLearner {
                         .groupBy(c => c.id)
                 )
                 
-                // at this point there are only classifications calculated for all instances that contained at least one list item
-                // if the list where empty the classification will be the average classification of all given classifications... or just 0??
-                val defaultClassification = calculated.map(_.classification).reduceLeft(_ + _) / calculated.size
+                val baseSource = new ArffJsonInstancesFile(inst.contentDescription.withHistory(List()))
+                val allIdsWithClass = baseSource.map(i => (i.id, targetClassDef(i.mscClasses)))
                 
-                val allIdsWithClass = inst.map(i => (i.id, targetClassDef(i.mscClasses)))
-                println("all: " + allIdsWithClass.size)
                 val calculatedIds = calculated.map(_.id)
                 val missingIdsWithClass = allIdsWithClass.toList.filter(idClass => !calculatedIds.contains(idClass._1))
-                println("calculated: " + calculated.size)
-                println("missing: " + missingIdsWithClass.size)
                 val missingClassifications = missingIdsWithClass.map(idClass => new RawClassification(idClass._1, 0.0, if(idClass._2) 1.0 else -1.0))
                 calculated ++ missingClassifications
             }

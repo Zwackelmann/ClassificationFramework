@@ -17,7 +17,7 @@ class FinalLearner2(learners: List[Learner]) {
     def calculateClassifications(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition) = {
         val resultsAndWeights = learners.map(
             l => {
-                val results = normalizeClassifications(l.classifications(inst, targetClassDef))
+                val results = normalizeClassifications(l.classifications(inst, targetClassDef).sortBy(c => c.id))
                 val weight = {
                     val m = l.fMeasure(inst, targetClassDef)
                     if(m.isNaN()) 0 else m
@@ -29,8 +29,6 @@ class FinalLearner2(learners: List[Learner]) {
         val results = resultsAndWeights.map(_._1)
         val weights = resultsAndWeights.map(_._2)
         val normedWeights = weights.map(w => w / weights.reduceLeft(_ + _))
-        
-        println(results.map(_.size))
         
         val finalRes = results.transpose.map(classificationList => {
             require(classificationList.forall(c => c.id == classificationList(0).id))

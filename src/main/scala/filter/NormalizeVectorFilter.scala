@@ -20,7 +20,7 @@ class NormalizeVectorFilter(val historyAppendix: HistoryItem) extends GlobalFilt
         source.map(
             elemFun = elements => {
                 elements.map(inst => {
-                    val len = (0.0 /: inst.sparseData.map(_._2).map(a => a*a))(_ + _)
+                    val len = math.sqrt((0.0 /: inst.sparseData.map(_._2).map(a => a*a))(_ + _))
                     val data = if(len != 0) {
                         inst.sparseData.map(kv => kv._1 -> kv._2.asInstanceOf[Double] / len)
                     } else {

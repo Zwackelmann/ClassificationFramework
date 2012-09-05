@@ -68,13 +68,10 @@ object ArffJsonInstance {
     }
 }
 
-abstract class ArffJsonInstance(val id: String, val mscClasses: List[String]) {
+abstract class ArffJsonInstance(val id: String, val mscClasses: List[String]) extends Point {
     def toJson: String
-    def dataAt(index: Int): Any
     def numAttributes(): Int
-    def data: Seq[Double]
-    def sparseData: Map[Int, Double]
-    
+    def dataAt(index: Int): Any
     def project(ids: List[Int]) = {
         val idsWithIndex = ids.zip(0 until ids.length).toMap
         

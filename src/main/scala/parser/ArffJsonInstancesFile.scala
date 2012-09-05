@@ -20,7 +20,7 @@ class ArffJsonInstancesFile(val contentDescription: ContentDescription) extends 
         val h = try {
             JSONSerializer.toJSON(r.readLine) match {
                 case o: JSONObject => ArffJsonHeader.jsonToArffJsonHeader(o)
-                case _ => throw new RuntimeException("The first line in file cannot be interpeted as a JSON object")
+                case _ => throw new RuntimeException("File: " + contentDescription.file + ": The first line in file cannot be interpeted as a JSON object")
             }
         } catch {
             case jsonEx: JSONException => throw new RuntimeException("The first line in file does not contain a valid JSON string")

@@ -156,7 +156,12 @@ class JoachimsSVMClassifier(options: Map[String, List[String]], trainBase: ArffJ
     var modelFilename = common.Common.randomStream().map(d => (d*9).toInt).take(32).mkString
     def modelFile = (JoachimsSVMClassifier.modelPath / modelFilename).file
     
-    builtClassifier(trainBase)
+    JoachimsSVMLearnApplier(
+        options,
+        trainBase,
+        modelFile,
+        targetClassDef
+    )
     
     def calculateClassifications(mappedInst: ArffJsonInstancesSource) = new Iterable[RawClassification] {
         println("calculate classifications for " + mappedInst.contentDescription)
@@ -167,17 +172,6 @@ class JoachimsSVMClassifier(options: Map[String, List[String]], trainBase: ArffJ
             modelFile, 
             targetClassDef
         ) 
-    }
-    
-    def builtClassifier(mappedInst: ArffJsonInstancesSource) {
-        println("train svm classifier with " + mappedInst.contentDescription)
-        
-        JoachimsSVMLearnApplier(
-            options,
-            mappedInst,
-            modelFile,
-            targetClassDef
-        )
     }
     
     def save(outFile: File) {

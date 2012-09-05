@@ -30,7 +30,6 @@ object NominalizeFilter {
                 }
                 
                 val historyAppendix = "nominalized-" + confName
-                
                 def load(file: File) = common.ObjectToFile.readObjectFromFile(file).asInstanceOf[NominalizeFilter]
             }
             case _ => throw new RuntimeException("Unknown NominalizeFilter configuaration name: " + confName)

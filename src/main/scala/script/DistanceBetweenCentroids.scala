@@ -20,7 +20,10 @@ import scala.collection.mutable
 
 object DistanceBetweeenCentroids {
     def main(args: Array[String]) {
-        val inst = new ArffJsonInstancesFile2(new File("data/arffJson/final-test_projection-abstract_vector-from-dict-conf4_tf-idf_lsi-500.json"))
+        val inst = new ArffJsonInstancesFile2(
+            new File("data/arffJson/final-test_projection-abstract_vector-from-dict-conf4_tf-idf_lsi-500.json"), 
+            ContentDescription("final", ContentDescription.TestSet, List())
+        )
         
         def merge(a: Map[Int, Double], b: Map[Int, Double], fun: (Double, Double) => Double) = {
             (for(key <- a.keys ++ b.keys) yield {
@@ -54,7 +57,6 @@ object DistanceBetweeenCentroids {
                 val diff = merge(centroid, m, (a, b) => a - b)
                 math.sqrt(diff.values.map(a => a*a).reduceLeft(_ + _))
             })
-            
             val out = ("| %3d |" format centroidId.toInt) + 
                 (for(centroidId <- centroids.keys.toList.sortBy(s => s)) yield {
                     " %7.4f |".format(diffs(centroidId))

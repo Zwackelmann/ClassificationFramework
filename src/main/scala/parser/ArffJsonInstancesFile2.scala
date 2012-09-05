@@ -7,7 +7,7 @@ import net.sf.json.JSONSerializer
 import net.sf.json.JSONException
 import net.sf.json.JSONObject
 
-class ArffJsonInstancesFile2(_file: File) extends ArffJsonInstancesSource {
+class ArffJsonInstancesFile2(_file: File, val contentDescription: ContentDescription) extends ArffJsonInstancesSource {
     def reader = new BufferedReader(new FileReader(file))
     
     val header: ArffJsonHeader = {
@@ -25,8 +25,6 @@ class ArffJsonInstancesFile2(_file: File) extends ArffJsonInstancesSource {
         r.close()
         h
     }
-    
-    val contentDescription = null
     
     def iterator = {
         val r = reader

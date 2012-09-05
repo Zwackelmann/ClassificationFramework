@@ -64,7 +64,7 @@ object Test {
                 flatMapNominalInstances.save(new File("trainSource"))
                 flatMapNominalInstances
             } else {
-                new ArffJsonInstancesFile2(new File("trainSource"))
+                new ArffJsonInstancesFile2(new File("trainSource"), ContentDescription("something", ContentDescription.TestSet, List()))
             }
              
             val testInstances = if(!new File("testSource").exists) {
@@ -80,7 +80,7 @@ object Test {
                 flatMapNominalTestInstances.save(new File("testSource"))
                 flatMapNominalTestInstances
             } else {
-                new ArffJsonInstancesFile2(new File("testSource"))
+                new ArffJsonInstancesFile2(new File("testSource"), ContentDescription("final", ContentDescription.TestSet, List()))
             }
             
             (trainInstances, testInstances)

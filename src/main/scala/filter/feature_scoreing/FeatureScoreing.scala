@@ -2,15 +2,12 @@ package filter.feature_scoreing
 import parser.ArffJsonInstancesSource
 import scala.collection.mutable.HashMap
 import scala.collection.mutable.HashSet
+import classifier.TargetClassDefinition
 
 object FeatureScoreing {
     trait CatCondition
-    case class IsCat(val x: Int) extends CatCondition
-    case class IsNotCat(val x: Int) extends CatCondition
-    
-    def not(x: Int) = IsNotCat(x)
-    implicit def int2Is(x: Int) = IsCat(x)
-    
+    case object IsCat extends CatCondition
+    case object IsNotCat extends CatCondition
     
     case class PropCondition(val x: Int, val within: CatCondition)
     
@@ -51,54 +48,58 @@ object FeatureScoreing {
 }
 
 @serializable
-abstract class FeatureScoreing(inst: ArffJsonInstancesSource) {
+abstract class FeatureScoreing(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition) {
     import FeatureScoreing._
     
-    def score(t: Int, c: Int): Double
-    def rankedFeatureList(c: Int): List[Pair[Int, Double]] = termMap.keys.map(t => Pair(t, score(t, c))).toList.sort((x1, x2) => x1._2 > x2._2)
+    def score(t: Int): Double
+    def rankedFeatureList(): List[Pair[Int, Double]] = termSet.filter(t => !score(t).isNaN).map(t => Pair(t, score(t))).toList.sort((x1, x2) => x1._2 > x2._2)
     
-    val (termCatMap, termMap, catMap, numDocs) = {
-        val termCatMap = new HashMap[Int, HashMap[Int, Int]] {
-            override def default(key: Int) = new HashMap[Int, Int] {
-                override def default(key: Int) = 0
-            }
-        }
+    val (numTargetInst, numOtherInst, termMapTarget, termMapOther, termSet) = {
+        var numTargetInst = 0
+        var numOtherInst = 0
         
-        val termMap = new HashMap[Int, Int] {
-            override def default(key: Int) = 0
-        }
+        val termMapTarget = new HashMap[Int, Int].withDefault(_ => 0)
+        val termMapOther = new HashMap[Int, Int].withDefault(_ => 0)
         
-        val catMap = new HashMap[Int, Int] {
-            override def default(key: Int) = 0
-        }
+        val termSet = new HashSet[Int]
         
-        var numDocs = 0
-        
-        for(inst <- inst.iterator) {
-            numDocs = numDocs + 1
-            for((termIndex, value) <- inst.sparseData) {
-                termMap(termIndex) = termMap(termIndex) + 1
+        for(inst <- inst) {
+            for((key, value) <- inst.sparseData) {
+                termSet += key
             }
             
-            for(topClass <- inst.mscClasses.map(_.substring(0, 2).toInt).distinct) {
-                catMap(topClass) = catMap(topClass) + 1
-            }
-            
-            for(topClass <- inst.mscClasses.map(_.substring(0, 2).toInt).distinct) {
-                for((termIndex, value) <- inst.sparseData) {
-                    termCatMap(termIndex) = {
-                        val termsCatMap = termCatMap(termIndex)
-                        termsCatMap(topClass) = termsCatMap(topClass) + 1
-                        termsCatMap
-                    }
+            if(targetClassDef(inst.mscClasses)) {
+                numTargetInst += 1
+                for((key, value) <- inst.sparseData) {
+                    termMapTarget(key) += 1
+                }
+            } else {
+                numOtherInst += 1
+                for((key, value) <- inst.sparseData) {
+                    termMapOther(key) += 1
                 }
             }
         }
         
-        (termCatMap, termMap, catMap, numDocs)
+        (numTargetInst, numOtherInst, termMapTarget.toMap, termMapOther.toMap, termSet.toSet)
     }
     
+    def numDocsCatAndTerm(term: Int) = termMapTarget.getOrElse(term, 0)
+    def numDocsCatAndNotTerm(term: Int) = numTargetInst - termMapTarget.getOrElse(term, 0)
+    def numDocsNotCatAndTerm(term: Int) = termMapOther.getOrElse(term, 0)
+    def numDocsNotCatAndNotTerm(term: Int) = numOtherInst - termMapOther.getOrElse(term, 0)
+    
     def p(pr: PropCondition) = {
+        val t = pr.x
+        val c = pr.within
+        
+        c match {
+            case IsCat => new Fraction(termMapTarget.getOrElse(t, 0).toLong, numTargetInst)
+            case IsNotCat => new Fraction(termMapOther.getOrElse(t, 0).toLong, numOtherInst)
+        }
+    }
+    
+    /*def p(pr: PropCondition) = {
         val t = pr.x
         val c = pr.within
         
@@ -132,7 +133,7 @@ abstract class FeatureScoreing(inst: ArffJsonInstancesSource) {
                 (pT - (pTGivenC * pC))./(pNotC)
             }
         }
-    }
+    }*/
     
 }
 

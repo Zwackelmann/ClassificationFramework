@@ -19,7 +19,7 @@ object Test4 {
     
     def main(args: Array[String]) {
         val res = List(
-            RawClassification.fromFile(new File("data/results/final_proj-abs_vec-conf5_or-1500-tg-15XXXX_c45-boost-30-tss-1000-200_tg-15XXXX_final-test_proj-abs_vec-conf5_or-1500-tg-15XXXX.json"))
+            RawClassification.fromFile(new File("data/results/final_proj-jour_vec-conf2_or-1.0-tg-15XXXX_c45-boost-30-tss-1000-200_tg-15XXXX_final-test_proj-jour_vec-conf2_or-1.0-tg-15XXXX.json"))
             //RawClassification.fromFile(new File("data/results/final_proj-tit_vec-conf5_or-2000-tg-15XXXX_c45_tss-1000-200_tg-15XXXX_final-test_proj-tit_vec-conf5_or-2000-tg-15XXXX.json")),
             //RawClassification.fromFile(new File("data/results/final_proj-tit_vec-conf5_tf-idf_lsi-500_svm_tss-1000-200_tg-15XXXX_final-test_proj-tit_vec-conf5_tf-idf_lsi-500.json")),
             //RawClassification.fromFile(new File("data/results/final_proj-abs_vec-conf5_tf-idf_lsi-500_svm_tss-1000-200_tg-15XXXX_final-test_proj-abs_vec-conf5_tf-idf_lsi-500.json"))

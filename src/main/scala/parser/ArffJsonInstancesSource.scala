@@ -9,6 +9,8 @@ import common.Path.arffJsonPath
 import filter.GlobalFilter
 import filter.FilterFactory
 import format.arff_json.HistoryItem
+import scala.collection.mutable
+import format.arff_json.Point
 
 object ArffJsonInstancesSource {
     def apply(_source: Iterable[ArffJsonInstance], _header: ArffJsonHeader, _contentDescription: ContentDescription) = {
@@ -17,6 +19,29 @@ object ArffJsonInstancesSource {
             val iterator = _source.iterator
             val contentDescription = _contentDescription
         }
+    }
+    
+    def centroids(inst: ArffJsonInstancesSource): Map[Int, Point] = {
+        def merge(a: Map[Int, Double], b: Map[Int, Double], fun: (Double, Double) => Double) = {
+            (for(key <- a.keys ++ b.keys) yield {
+                val aValue = a.getOrElse(key, 0.0)
+                val bValue = b.getOrElse(key, 0.0)
+                key -> fun(aValue, bValue)
+            }).toMap
+        }
+        
+        val map = new mutable.HashMap[Int, Pair[Map[Int, Double], Int]] {
+            override def default(key: Int) = (Map[Int, Double](), 0)
+        }
+        
+        for(i <- inst) {
+            for(group <- i.mscClasses.map(_.substring(0, 2).toInt).distinct) {
+                val mapItem = map(group)
+                map(group) = Pair(merge(mapItem._1, i.sparseData, (a, b) => a + b), mapItem._2 + 1)
+            }
+        }
+        
+        map.mapValues(m => Point(m._1.mapValues(v => v / m._2), inst.numAttributes)).toMap
     }
 }
 

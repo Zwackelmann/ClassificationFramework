@@ -4,7 +4,7 @@
 .settings
 .svn
 bin
-data2
+data2*
 lib1
 lib2
 main.jar
@@ -14,3 +14,10 @@ test-results
 testSource
 trainSource
 build
+data/arffJson
+data/classifier
+data/filter
+data/filter2
+data/lsi_models
+data/results2
+data/svm_models
