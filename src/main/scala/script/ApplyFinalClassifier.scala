@@ -28,6 +28,11 @@ import classifier.FinalLearner
 import classifier.FinalLearner2
 import weka.classifiers.meta.AdaBoostM1
 import format.arff_json.ArffJsonInstance
+import filter.VectorFromNGramTreeFilter
+import common.Common.FileConversion._
+import format.arff_json.ArffJsonHeader
+import format.arff_json.SparseArffJsonInstance
+import format.arff_json.DenseArffJsonInstance
 
 object ApplyFinalClassifier {
     def main(args: Array[String]) {
@@ -110,6 +115,12 @@ class OrHistory(val projection: Pair[Int, String], val orThreshold: Double, val 
     ).flatten
 }
 
+class NGramHistory(file: File, projection: Pair[Int, String]) extends (TargetClassDefinition => List[HistoryItem]) {
+    def apply(targetClassDef: TargetClassDefinition) = List(
+        List(ProjectionFilter(List(projection._1), projection._2)), 
+        List(VectorFromNGramTreeFilter("conf1", file))
+    ).flatten
+}
 
 class JournalOnlyFlattenedHistory(vectorConf: String = "conf1") extends FlattenedHistory((2, "jour"), vectorConf)
 class KeywordOnlyFlattenedHistory(vectorConf: String = "conf1") extends FlattenedHistory((3, "kw"), vectorConf)

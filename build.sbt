@@ -1,7 +1,5 @@
 name := "Classification Framework"
 
-ass
-
 version := "1.0"
 
 scalaVersion := "2.9.2"
@@ -16,4 +14,8 @@ libraryDependencies += "org.apache.lucene" % "lucene-snowball" % "3.0.3"
 
 libraryDependencies += "net.sf.json-lib" % "json-lib" % "2.4"
 
+fullRunTask(classifyRun, Test, "script.ApplyFinalClassifier")
 
+javaOptions in classifyRun += "-Xmx8000m"
+
+fork in classifyRun := true

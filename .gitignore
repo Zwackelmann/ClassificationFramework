@@ -21,4 +21,5 @@ data/filter2
 data/lsi_models
 data/results2
 data/svm_models
-data/results
+data/results*
+
