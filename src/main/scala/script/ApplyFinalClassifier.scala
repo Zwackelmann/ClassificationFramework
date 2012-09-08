@@ -36,8 +36,11 @@ import format.arff_json.DenseArffJsonInstance
 
 object ApplyFinalClassifier {
     def main(args: Array[String]) {
-        val testset = new ArffJsonInstancesFile("final", ContentDescription.TestSet, List())
-        val trainset = new ArffJsonInstancesFile("final", ContentDescription.TrainSet, List())
+        val testSetMini = new ArffJsonInstancesFile("final-mini", ContentDescription.TestSet, List())
+        val trainSetMini = new ArffJsonInstancesFile("final-mini", ContentDescription.TrainSet, List())
+        
+        val testSet = new ArffJsonInstancesFile("final", ContentDescription.TestSet, List())
+        val trainSet = new ArffJsonInstancesFile("final", ContentDescription.TrainSet, List())
         
         val finalLearner = new FinalLearner2(List(
             // lsi + svm
@@ -110,7 +113,7 @@ object ApplyFinalClassifier {
         // ngramclassifier.classifications(testset, TopClassIs("13"))
         
         for(c <- common.Common.topClasses if c.toInt >= 0 && c.toInt < 10) { 
-            finalLearner.calculateClassifications(testset, TopClassIs(c))
+            finalLearner.calculateClassifications(testSet, TopClassIs(c))
         }
     }
 }

@@ -161,7 +161,7 @@ class JoachimsSVMClassifier(options: Map[String, List[String]], trainBase: ArffJ
 	private def buildClassifier(inst: ArffJsonInstancesSource) {
 		JoachimsSVMLearnApplier(
 			options,
-			trainBase,
+			inst,
 			modelFile,
 			targetClassDef
 		)
