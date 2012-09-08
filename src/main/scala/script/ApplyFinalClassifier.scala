@@ -112,7 +112,7 @@ object ApplyFinalClassifier {
         
         // ngramclassifier.classifications(testset, TopClassIs("13"))
         
-        for(c <- common.Common.topClasses if c.toInt >= 0 && c.toInt < 10) { 
+        for(c <- common.Common.topClasses if c.toInt >= 30 && c.toInt < 40) { 
             finalLearner.calculateClassifications(testSet, TopClassIs(c))
         }
     }
