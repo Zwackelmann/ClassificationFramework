@@ -28,6 +28,11 @@ import classifier.FinalLearner
 import classifier.FinalLearner2
 import weka.classifiers.meta.AdaBoostM1
 import format.arff_json.ArffJsonInstance
+import filter.VectorFromNGramTreeFilter
+import common.Common.FileConversion._
+import format.arff_json.ArffJsonHeader
+import format.arff_json.SparseArffJsonInstance
+import format.arff_json.DenseArffJsonInstance
 
 object ApplyFinalClassifier {
     def main(args: Array[String]) {
@@ -76,7 +81,35 @@ object ApplyFinalClassifier {
             )
         ))
         
-        for(c <- common.Common.topClasses if c.toInt >= 10 && c.toInt < 20) { 
+        /*val source = ArffJsonInstancesSource(
+            List(
+                new DenseArffJsonInstance("", List(), List("my stuff has lots of commutative Noetherian local Rings. And also many finite many associated prime. we also analyzed the usual local cohomology functor and the usual local cohomology functor again.")),
+                new DenseArffJsonInstance("", List(), List("neumann total quotient ring weak finite conductor rings are cool. complete regular local ring is awesome and i also like finite generated graded algebra very much. blah two finite generated module la la la la "))
+            ),
+            new ArffJsonHeader("", List(), List()),
+            ContentDescription("", ContentDescription.TrainSet, List())
+        )*/
+        
+        /*val ngramfilter = new VectorFromNGramTreeFilter.Conf1(
+            new File("data/ngrams/13-XX").lines.map(line => line.split("\\s+").toList),
+            HistoryItem("ng-13")
+        )
+        
+        val mappedInst = trainset
+             .applyFilter(new ProjectionFilter(List(1), HistoryItem("proj-abs")))
+             .applyFilter(ngramfilter)
+        
+        println(mappedInst.take(1000).mkString("\n"))*/ 
+            
+        /*val ngramclassifier = BoostedC45Learner(
+            new NGramHistory(new File("data/ngrams/13-XX"), Pair(1, "abs")),
+            Pair(Some(1000), Some(200)),
+            1
+        )*/
+        
+        // ngramclassifier.classifications(testset, TopClassIs("13"))
+        
+        for(c <- common.Common.topClasses if c.toInt >= 0 && c.toInt < 10) { 
             finalLearner.calculateClassifications(testset, TopClassIs(c))
         }
     }
@@ -110,6 +143,12 @@ class OrHistory(val projection: Pair[Int, String], val orThreshold: Double, val 
     ).flatten
 }
 
+class NGramHistory(file: File, projection: Pair[Int, String]) extends (TargetClassDefinition => List[HistoryItem]) {
+    def apply(targetClassDef: TargetClassDefinition) = List(
+        List(ProjectionFilter(List(projection._1), projection._2)), 
+        List(VectorFromNGramTreeFilter("conf1", file))
+    ).flatten
+}
 
 class JournalOnlyFlattenedHistory(vectorConf: String = "conf1") extends FlattenedHistory((2, "jour"), vectorConf)
 class KeywordOnlyFlattenedHistory(vectorConf: String = "conf1") extends FlattenedHistory((3, "kw"), vectorConf)

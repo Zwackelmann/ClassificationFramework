@@ -10,57 +10,47 @@ import java.io.File
 import format.arff_json.ArffJsonInstance
 import format.arff_json.DenseArffJsonInstance
 import parser.ContentDescription
+import common.Common.FileConversion._
 
-object VectorFromNGrammTreeFilter {
-    def main(args: Array[String]) {
-        val source = ArffJsonInstancesSource(
-            List(
-                new DenseArffJsonInstance("", List(), List("my fancy shit has all regulars locals rings and is analytic irreducible locals domain")),
-                new DenseArffJsonInstance("", List(), List("you knew that all Regulars lOcals rings are all regulaR local ringS and not irreducible"))
-            ),
-            new ArffJsonHeader("", List(), List()),
-            ContentDescription("", ContentDescription.TrainSet, List())
-        )
-        
-        val filter = VectorFromNGrammTreeFilter("conf1", List(
-            List("all", "regular", "local", "ring"),
-            List("analytic", "irreducible", "local", "domain")
-        ))(source)
-        
-        println(source.applyFilter(filter).mkString("\n"))
-    }
-    
-    def apply(confName: String, nGramms: List[List[String]]) = {
+object VectorFromNGramTreeFilter {
+    def apply(confName: String, nGrams: Iterable[List[String]]): FilterFactory = {
         new StorableFilterFactory {
             def apply(trainBase: ArffJsonInstancesSource) = {
                 val filter = confName match {
-                    case "conf1" => new Conf1(nGramms, this)
+                    case "conf1" => new Conf1(nGrams, this)
                     case _ => throw new RuntimeException("Unknown VectorFromNGrammTreeFilter configuration: " + confName)
                 }
                 filter
             }
             
             val historyAppendix = "vec-ng-" + confName
-            def load(file: File) = common.ObjectToFile.readObjectFromFile(file).asInstanceOf[VectorFromNGrammTreeFilter]
+            def load(file: File) = common.ObjectToFile.readObjectFromFile(file).asInstanceOf[VectorFromNGramTreeFilter]
         }
     }
     
-    class Conf1(nGrams: List[List[String]], historyAppendix: HistoryItem) extends VectorFromNGrammTreeFilter(nGrams, historyAppendix) {
-        override def inst2Words(inst: ArffJsonInstance) = inst.data(0)
-            .asInstanceOf[String]
-            .toLowerCase()
-            .filter(c => c == '-' || c.isLetter || c.isDigit || c.isWhitespace)
-            .split("\\s+")
-            .map(s => if(s.endsWith("s")) s.substring(0, s.size - 1) else s)
-            .toSeq
+    def apply(confName: String, nGrammFile: File): FilterFactory = apply(confName, nGrammFile.lines.map(line => line.split("\\s+").toList))
+    
+    @serializable
+    class Conf1(nGrams: Iterable[List[String]], historyAppendix: HistoryItem) extends VectorFromNGramTreeFilter(nGrams, historyAppendix) {
+        override def inst2Words(inst: ArffJsonInstance) = {
+            inst.data(0)
+                .asInstanceOf[String]
+                .toLowerCase()
+                .split("[\\s+\\.,]")
+                .map(s => s.filter(c => c == '-' || c.isLetter || c.isDigit || c.isWhitespace))
+                .map(s => if(s == "has") "ha" else s)
+                .filter(_ != "")
+                .toSeq
+        }
     }
 }
 
-abstract class VectorFromNGrammTreeFilter(nGrams: List[List[String]], val historyAppendix: HistoryItem) extends GlobalFilter {
+@serializable
+abstract class VectorFromNGramTreeFilter(nGrams: Iterable[List[String]], val historyAppendix: HistoryItem) extends GlobalFilter {
     def inst2Words(inst: ArffJsonInstance): Seq[String]
     
-    val dict: NGrammTree = {
-        val buffer = new NGrammTreeBuffer
+    val dict: NGramTree = {
+        val buffer = new NGramTreeBuffer
         
         for(nGram <- nGrams) {
             buffer += nGram
@@ -78,11 +68,11 @@ abstract class VectorFromNGrammTreeFilter(nGrams: List[List[String]], val histor
                 }
                 val ids = fun(inst2Words(inst), List())
                 val data = ids.groupBy(a => a).map(a => a._1 -> a._2.size.toDouble)
-                new SparseArffJsonInstance(inst.id, inst.mscClasses, data.toMap, dict.nGrammSet.size)
+                new SparseArffJsonInstance(inst.id, inst.mscClasses, data.toMap, dict.nGramSet.size)
             }),
             headerFun = header => new ArffJsonHeader(
                 header.relationName, 
-                dict.sortedNGrammList.map(w => new NumericArffJsonAttribute(w.mkString("+"))).toList, List()
+                dict.sortedNGramList.map(w => new NumericArffJsonAttribute(w.mkString("+"))).toList, List()
             ),
             historyAppendix = historyAppendix
         )

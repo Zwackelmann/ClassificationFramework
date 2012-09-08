@@ -14,4 +14,4 @@ libraryDependencies += "org.apache.lucene" % "lucene-snowball" % "3.0.3"
 
 libraryDependencies += "net.sf.json-lib" % "json-lib" % "2.4"
 
-fullRunTask(classifyRun, Compile, "script.ApplyFinalClassifier")
+javaOptions in run += "-Xmx2500M"
