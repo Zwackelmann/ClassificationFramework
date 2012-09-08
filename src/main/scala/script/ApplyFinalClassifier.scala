@@ -76,7 +76,7 @@ object ApplyFinalClassifier {
             )
         ))
         
-        for(c <- common.Common.topClasses if c.toInt >= 0 && c.toInt < 10) { 
+        for(c <- common.Common.topClasses if c.toInt >= 30 && c.toInt < 40) { 
             finalLearner.calculateClassifications(testset, TopClassIs(c))
         }
     }
