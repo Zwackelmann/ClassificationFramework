@@ -21,28 +21,27 @@ object TfIdfFilter {
 
 @serializable
 class TfIdfFilter(source: ArffJsonInstancesSource, val historyAppendix: HistoryItem) extends GlobalFilter {
-    val (df, numDocuments) = {
-        val df = new HashMap[Int, Int] {
+    val (tf, numDocuments) = {
+        val tf = new HashMap[Int, Int] {
             override def default(key: Int) = 0
         }
         
         var count = 0
         for(example <- source.iterator) {
             for((key, value) <- example.sparseData if value != 0) {
-                df(key) = df(key) + 1
+                tf(key) = tf(key) + 1
             }
             count = count + 1
         }
         
-        (df.toMap, count)
+        (tf.toMap, count)
     }
     
     def applyFilter(source: ArffJsonInstancesSource) = {
         source.map(
             elemFun = elements => elements.map(inst => {
                 val data = for((key, value) <- inst.sparseData) yield {
-                    val v = value.asInstanceOf[Double]
-                    key -> (v * math.log((numDocuments + 0.5) / (df.getOrElse(key, 0) + 0.5)))
+                    key -> (value * math.log((numDocuments + 0.5) / (tf.getOrElse(key, 0) + 0.5)))
                 }
                 
                 new SparseArffJsonInstance(inst.id, inst.mscClasses, data, inst.numAttributes())

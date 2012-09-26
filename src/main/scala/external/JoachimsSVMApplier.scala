@@ -146,7 +146,7 @@ object JoachimsSVMClassifier {
 }
 
 @serializable
-class JoachimsSVMClassifier(options: Map[String, List[String]], trainBase: ArffJsonInstancesSource, val targetClassDef: TargetClassDefinition, val parent: Option[Learner]) extends Classifier(trainBase, targetClassDef, parent) {
+class JoachimsSVMClassifier(options: Map[String, List[String]], @transient trainBase: ArffJsonInstancesSource, val targetClassDef: TargetClassDefinition, val parent: Option[Learner]) extends Classifier(trainBase, targetClassDef, parent) {
     def this(options: Map[String, List[String]], trainBase: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition, parent: Learner) = 
         this(options, trainBase, targetClassDef, Some(parent))
         

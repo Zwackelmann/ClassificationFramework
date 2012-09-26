@@ -74,28 +74,30 @@ object InstancesMappings {
                     case _ => throw new RuntimeException("HistoryItem must be a FilterFactory")
                 }
                 
-                /*val _filter = filter(filterToApply, targetClassDef) match {
-                    case(filterFun: (ArffJsonInstancesSource => Filter), Some(fileFun: (File => Filter))) => { 
-                        val filter = if(!filterFile.exists()) {
-                            filterFun(apply(base, target.toTrain.dropLastHistoryItem, targetClassDef))
-                        } else {
-                            fileFun(filterFile)
-                        }
-                        filter.save(filterFile)
-                        filter
-                    }
-                    
-                    case(filterFun: (ArffJsonInstancesSource => Filter), None) => {
-                        filterFun(apply(base, target.toTrain.dropLastHistoryItem, targetClassDef))
-                    }
-                }*/
-                
                 val underlyingInstances = apply(base, target.dropLastHistoryItem, targetClassDef, learner)
                 println("apply " + currentFilterFactory.historyAppendix + " filter on " + target.dropLastHistoryItem)
-                _filter.applyFilter(underlyingInstances, targetClassDef)
+                val mappedInstances = _filter.applyFilter(underlyingInstances, targetClassDef)
+                if(!mappedInstances.file.exists()) {
+                    print("save " + mappedInstances.contentDescription + "...")
+                    mappedInstances.save()
+                    println("done")
+                }
+                mappedInstances
             }
         }
     }
-    
-    // def filter(filterName: String, targetClassDef: TargetClassDefinition): Pair[ArffJsonInstancesSource => Filter, Option[File => Filter]]
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+

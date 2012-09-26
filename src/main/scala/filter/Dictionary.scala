@@ -4,36 +4,50 @@ import java.util.TreeSet
 import java.util.{Set => JavaSet}
 import scala.collection.JavaConversions._
 
+object Dictionary {
+    class DirtyFlag(var isDirty: Boolean = true)
+}
+
 @serializable
 abstract class Dictionary extends Iterable[String] {
+    import Dictionary._
+    
     def wordFun(word: String): String = word
     def wordCond(word: String): Boolean = true
     val stopList: Seq[String] = List()
-    val minWordCount = 3
+    val minWordCount = 10
     
-    var dirty = true
+    @transient lazy val dirtyFlag = new DirtyFlag
     @transient lazy val _dict: JavaSet[String] = new TreeSet[String]()
     @transient lazy val _wordToIndexMap = new HashMap[String, Int]
     val dictCount = new HashMap[String, Int]
     
     def iterator = dict.iterator
     
-    def dict = if(dirty) {
-        _dict.clear()
-        _wordToIndexMap.clear()
-        
-        _dict ++= dictCount.filter(w => w._2 > minWordCount).map(_._1)
-        for((word, i) <- (_dict.zipWithIndex)) {
-            _wordToIndexMap.put(word, i)
+    def update {
+        if(dirtyFlag.isDirty) {
+            _dict.clear()
+            _wordToIndexMap.clear()
+            
+            _dict ++= dictCount.filter(w => w._2 > minWordCount).map(_._1)
+            for((word, i) <- (_dict.zipWithIndex)) {
+                _wordToIndexMap.put(word, i)
+            }
+            
+            dirtyFlag.isDirty = false
+            _dict
         }
-        
-        dirty = false
-        _dict
-    } else {
+    }
+    
+    def dict = {
+        update
         _dict
     }
     
-    def wordIndex(word: String) = _wordToIndexMap.get(wordFun(word))
+    def wordIndex(word: String) = {
+        update
+        _wordToIndexMap.get(wordFun(word))
+    }
     
     def add(word: String) {
         val w = wordFun(word)
@@ -41,7 +55,7 @@ abstract class Dictionary extends Iterable[String] {
             dictCount(w) = dictCount.getOrElse(w, 0) + 1
         }
         
-        dirty = true
+        dirtyFlag.isDirty = true
     }
 }
 

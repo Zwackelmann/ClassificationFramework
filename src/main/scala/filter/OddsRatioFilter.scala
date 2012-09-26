@@ -27,9 +27,10 @@ class OddsRatioFilter(trainBase: ArffJsonInstancesSource, targetClassDef: Target
         println("use odds ratio filter on " + inst.contentDescription)
         
         val bestFeatures = featureScoring.rankedFeatureList
-        
+        val chosenFeatures = bestFeatures.takeWhile(_._2 > orThreshold).map(_._1) ++ bestFeatures.reverse.take(2000).map(_._1)
+        println(chosenFeatures.size + " features selected for or filter")
         inst.project(
-            bestFeatures.map(_._1).takeWhile(_ > orThreshold),
+            chosenFeatures,
             historyAppendix
         )
     }

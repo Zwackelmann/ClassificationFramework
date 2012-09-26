@@ -34,16 +34,17 @@ object ApplyFinalClassifier {
         val testset = new ArffJsonInstancesFile("final", ContentDescription.TestSet, List())
         val trainset = new ArffJsonInstancesFile("final", ContentDescription.TrainSet, List())
         
+        println("start")
         val finalLearner = new FinalLearner2(List(
             // lsi + svm
-            SvmLearner(
+            /*SvmLearner(
                 new AbstractOnlyLsiHistory(500, "conf5", true, false),
-                Pair(Some(1000), Some(200))
-            ), 
+                Pair(None, None)
+            )*//*, 
             SvmLearner(
-                new TitleOnlyLsiHistory(250, "conf5", true, false),
+                new TitleOnlyLsiHistory(250, "conf6", true, false),
                 Pair(Some(1000), Some(200))
-            ), 
+            )*//*, 
             // or + svm
             SvmLearner(
                 new AbstractOnlyOrHistory(1.0),
@@ -52,13 +53,13 @@ object ApplyFinalClassifier {
             SvmLearner(
                 new TitleOnlyOrHistory(1.0),
                 Pair(Some(1000), Some(200))
-            ), 
+            ),*/
             // or + boosted c45
             BoostedC45Learner(
-                new AbstractOnlyOrHistory(2000),
+                new AbstractOnlyOrHistory(1.0, "conf6"),
                 Pair(Some(1000), Some(200)),
-                30
-            ), 
+                10
+            )/*, 
             BoostedC45Learner(
                 new TitleOnlyOrHistory(1.0),
                 Pair(Some(1000), Some(200)), 
@@ -73,10 +74,10 @@ object ApplyFinalClassifier {
                 new TermsOnlyOrHistory(1.0),
                 Pair(Some(1000), Some(200)),
                 30
-            )
+            )*/
         ))
         
-        for(c <- common.Common.topClasses if c.toInt >= 10 && c.toInt < 20) { 
+        for(c <- common.Common.topClasses if c.toInt >= 15 && c.toInt < 16) { 
             finalLearner.calculateClassifications(testset, TopClassIs(c))
         }
     }

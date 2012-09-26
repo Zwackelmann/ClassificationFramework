@@ -17,7 +17,7 @@ trait TrainSetSelection extends Learner {
     
     abstract override def mapInstances(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition, set: Option[ContentDescription.Set] = None) = {
         val mappedInst = super.mapInstances(inst, targetClassDef, set)
-        if(set == Some(ContentDescription.TrainSet)) {
+        if(set == Some(ContentDescription.TrainSet) && numTargetInst.isDefined && numOtherInst.isDefined) {
             applySelection(mappedInst, targetClassDef)
         } else {
             mappedInst

@@ -10,14 +10,17 @@ import common.Time
 
 class ArffJsonInstancesIterator(reader: BufferedReader, header: ArffJsonHeader) extends Iterator[ArffJsonInstance] {
     var buffer: ArffJsonInstance = null
+    var count = 0
     
     def bufferNext() = {
         val line = reader.readLine()
         if(line != null) {
+            count += 1
             buffer = try {
                 ArffJsonInstance(line, header)
             } catch {
                 case e => {
+                    // println("catch: line: " + count + ", text: " + line)
                     ArffJsonInstance(JSONSerializer.toJSON(line).asInstanceOf[JSONArray], header)
                 }
             }
