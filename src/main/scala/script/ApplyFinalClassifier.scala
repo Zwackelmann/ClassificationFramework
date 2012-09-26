@@ -28,11 +28,19 @@ import classifier.FinalLearner
 import classifier.FinalLearner2
 import weka.classifiers.meta.AdaBoostM1
 import format.arff_json.ArffJsonInstance
+import filter.VectorFromNGramTreeFilter
+import common.Common.FileConversion._
+import format.arff_json.ArffJsonHeader
+import format.arff_json.SparseArffJsonInstance
+import format.arff_json.DenseArffJsonInstance
 
 object ApplyFinalClassifier {
     def main(args: Array[String]) {
-        val testset = new ArffJsonInstancesFile("final", ContentDescription.TestSet, List())
-        val trainset = new ArffJsonInstancesFile("final", ContentDescription.TrainSet, List())
+        val testSetMini = new ArffJsonInstancesFile("final-mini", ContentDescription.TestSet, List())
+        val trainSetMini = new ArffJsonInstancesFile("final-mini", ContentDescription.TrainSet, List())
+        
+        val testSet = new ArffJsonInstancesFile("final", ContentDescription.TestSet, List())
+        val trainSet = new ArffJsonInstancesFile("final", ContentDescription.TrainSet, List())
         
         println("start")
         val finalLearner = new FinalLearner2(List(
@@ -78,7 +86,7 @@ object ApplyFinalClassifier {
         ))
         
         for(c <- common.Common.topClasses if c.toInt >= 15 && c.toInt < 16) { 
-            finalLearner.calculateClassifications(testset, TopClassIs(c))
+            finalLearner.calculateClassifications(testSet, TopClassIs(c))
         }
     }
 }
@@ -111,6 +119,12 @@ class OrHistory(val projection: Pair[Int, String], val orThreshold: Double, val 
     ).flatten
 }
 
+class NGramHistory(file: File, projection: Pair[Int, String]) extends (TargetClassDefinition => List[HistoryItem]) {
+    def apply(targetClassDef: TargetClassDefinition) = List(
+        List(ProjectionFilter(List(projection._1), projection._2)), 
+        List(VectorFromNGramTreeFilter("conf1", file))
+    ).flatten
+}
 
 class JournalOnlyFlattenedHistory(vectorConf: String = "conf1") extends FlattenedHistory((2, "jour"), vectorConf)
 class KeywordOnlyFlattenedHistory(vectorConf: String = "conf1") extends FlattenedHistory((3, "kw"), vectorConf)

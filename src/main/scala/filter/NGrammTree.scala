@@ -5,7 +5,7 @@ import java.util.TreeMap
 import scala.collection.JavaConversions._
 import scala.sys.process.Process._
 
-class NGrammTreeBuffer {
+class NGramTreeBuffer {
     val root: NGrammNodeBuffer = new NGrammNodeBuffer(None)
     val nGramSet = new mutable.HashSet[List[String]]
     
@@ -35,9 +35,9 @@ class NGrammTreeBuffer {
         sortedNGrammList.toList
     }
     
-    def toNGrammTree: NGrammTree = {
+    def toNGrammTree: NGramTree = {
         val sortedNGramList = setIndexes
-        new NGrammTree(root.toNGrammNode, nGramSet.toSet, sortedNGramList)
+        new NGramTree(root.toNGrammNode, nGramSet.toSet, sortedNGramList)
     }
 }
 
@@ -59,18 +59,20 @@ class NGrammNodeBuffer(val nodeLabel: Option[List[String]]) {
         }
     }
     
-    def toNGrammNode: NGrammNode = new NGrammNode(children.toMap.map(c => c._1 -> c._2.toNGrammNode), id)
+    def toNGrammNode: NGramNode = new NGramNode(children.toMap.map(c => c._1 -> c._2.toNGrammNode), id)
 }
 
-class NGrammTree(root: NGrammNode, val nGrammSet: Set[List[String]], val sortedNGrammList: List[List[String]]) {
-    def apply(nGramm: Seq[String]) = root(nGramm)
+@serializable
+class NGramTree(root: NGramNode, val nGramSet: Set[List[String]], val sortedNGramList: List[List[String]]) {
+    def apply(nGram: Seq[String]) = root(nGram)
 }
 
-class NGrammNode(val children: Map[String, NGrammNode], val id: Option[Int]) {
-    def apply(nGramm: Seq[String]): Option[Int] = {
-        if(nGramm.isEmpty || id.isDefined) id
-        else children.get(nGramm.head) match {
-            case Some(node) => node(nGramm.tail)
+@serializable
+class NGramNode(val children: Map[String, NGramNode], val id: Option[Int]) {
+    def apply(nGram: Seq[String]): Option[Int] = {
+        if(nGram.isEmpty || id.isDefined) id
+        else children.get(nGram.head) match {
+            case Some(node) => node(nGram.tail)
             case _ => None
         }
     }
