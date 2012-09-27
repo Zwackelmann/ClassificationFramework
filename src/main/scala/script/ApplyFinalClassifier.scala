@@ -42,6 +42,8 @@ object ApplyFinalClassifier {
         val testSet = new ArffJsonInstancesFile("final", ContentDescription.TestSet, List())
         val trainSet = new ArffJsonInstancesFile("final", ContentDescription.TrainSet, List())
         
+        // println(testSet.take(100).mkString("\n"))
+        
         val finalLearner = new FinalLearner2(List(
             // lsi + svm
             SvmLearner(
@@ -60,13 +62,13 @@ object ApplyFinalClassifier {
             SvmLearner(
                 new TitleOnlyOrHistory(1.0),
                 Pair(Some(1000), Some(200))
-            ), 
+            ),
             // or + boosted c45
             BoostedC45Learner(
                 new AbstractOnlyOrHistory(2000),
                 Pair(Some(1000), Some(200)),
                 30
-            ), 
+            ),
             BoostedC45Learner(
                 new TitleOnlyOrHistory(1.0),
                 Pair(Some(1000), Some(200)), 
@@ -76,13 +78,15 @@ object ApplyFinalClassifier {
                 new JournalOnlyOrHistory(1.0),
                 Pair(Some(1000), Some(200)),
                 30
-            ), 
+            ),
             BoostedC45Learner(
                 new TermsOnlyOrHistory(1.0),
                 Pair(Some(1000), Some(200)),
                 30
             )
         ))
+        
+        
         
         /*val source = ArffJsonInstancesSource(
             List(
@@ -112,7 +116,9 @@ object ApplyFinalClassifier {
         
         // ngramclassifier.classifications(testset, TopClassIs("13"))
         
-        for(c <- common.Common.topClasses if c.toInt >= 30 && c.toInt < 40) { 
+        
+        
+        for(c <- common.Common.topClasses if c.toInt >= 70 && c.toInt < 80) { 
             finalLearner.calculateClassifications(testSet, TopClassIs(c))
         }
     }

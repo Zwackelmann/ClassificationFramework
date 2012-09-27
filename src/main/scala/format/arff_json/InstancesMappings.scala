@@ -71,31 +71,27 @@ object InstancesMappings {
                     case filterFactory: FilterFactory => {
                         filterFactory(apply(base, target.toTrain.dropLastHistoryItem, targetClassDef, learner))
                     }
-                    case _ => throw new RuntimeException("HistoryItem must be a FilterFactory")
+                    case _ => throw new RuntimeException("HistoryItem must be a FilterFactory to use mappings")
                 }
-                
-                /*val _filter = filter(filterToApply, targetClassDef) match {
-                    case(filterFun: (ArffJsonInstancesSource => Filter), Some(fileFun: (File => Filter))) => { 
-                        val filter = if(!filterFile.exists()) {
-                            filterFun(apply(base, target.toTrain.dropLastHistoryItem, targetClassDef))
-                        } else {
-                            fileFun(filterFile)
-                        }
-                        filter.save(filterFile)
-                        filter
-                    }
-                    
-                    case(filterFun: (ArffJsonInstancesSource => Filter), None) => {
-                        filterFun(apply(base, target.toTrain.dropLastHistoryItem, targetClassDef))
-                    }
-                }*/
                 
                 val underlyingInstances = apply(base, target.dropLastHistoryItem, targetClassDef, learner)
                 println("apply " + currentFilterFactory.historyAppendix + " filter on " + target.dropLastHistoryItem)
-                _filter.applyFilter(underlyingInstances, targetClassDef)
+                val mappedInstances = _filter.applyFilter(underlyingInstances, targetClassDef)
+                if(_filter.isInstanceOf[ProjectionFilter]) { //TODO HACK!!
+                    println("save instances")
+                    mappedInstances.save()
+                }
+                mappedInstances
             }
         }
     }
-    
-    // def filter(filterName: String, targetClassDef: TargetClassDefinition): Pair[ArffJsonInstancesSource => Filter, Option[File => Filter]]
 }
+
+
+
+
+
+
+
+
+
