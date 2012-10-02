@@ -42,18 +42,16 @@ object ApplyFinalClassifier {
         val testSet = new ArffJsonInstancesFile("final", ContentDescription.TestSet, List())
         val trainSet = new ArffJsonInstancesFile("final", ContentDescription.TrainSet, List())
         
-        // println(testSet.take(100).mkString("\n"))
-        
-        val finalLearner = new FinalLearner2(List(
+        //val finalLearner = new FinalLearner2(List(
             // lsi + svm
-            SvmLearner(
+            /*SvmLearner(
                 new AbstractOnlyLsiHistory(500, "conf5", true, false),
-                Pair(Some(1000), Some(200))
-            ), 
+                Pair(None, None)
+            )*//*, 
             SvmLearner(
-                new TitleOnlyLsiHistory(250, "conf5", true, false),
+                new TitleOnlyLsiHistory(250, "conf6", true, false),
                 Pair(Some(1000), Some(200))
-            ), 
+            )*//*, 
             // or + svm
             SvmLearner(
                 new AbstractOnlyOrHistory(1.0),
@@ -62,13 +60,13 @@ object ApplyFinalClassifier {
             SvmLearner(
                 new TitleOnlyOrHistory(1.0),
                 Pair(Some(1000), Some(200))
-            ),
+            ),*/
             // or + boosted c45
-            BoostedC45Learner(
-                new AbstractOnlyOrHistory(2000),
+            val boostedC45Learner = BoostedC45Learner(
+                new AbstractOnlyOrHistory(1.0, 2000, "conf6"),
                 Pair(Some(1000), Some(200)),
-                30
-            ),
+                10
+            )/*, 
             BoostedC45Learner(
                 new TitleOnlyOrHistory(1.0),
                 Pair(Some(1000), Some(200)), 
@@ -83,10 +81,8 @@ object ApplyFinalClassifier {
                 new TermsOnlyOrHistory(1.0),
                 Pair(Some(1000), Some(200)),
                 30
-            )
-        ))
-        
-        
+            )*/
+        //))
         
         /*val source = ArffJsonInstancesSource(
             List(
@@ -116,10 +112,27 @@ object ApplyFinalClassifier {
         
         // ngramclassifier.classifications(testset, TopClassIs("13"))
         
+        def performance(results: Seq[RawClassification]) = {
+            
+            val prec = Classifier.precision(results, 0)
+            val rec = Classifier.recall(results, 0)
+            val f = Classifier.fMeasure(results, 1.0, 0)
+            
+            (prec, rec, f)
+        }
         
         
-        for(c <- common.Common.topClasses if c.toInt >= 70 && c.toInt < 80) { 
-            finalLearner.calculateClassifications(testSet, TopClassIs(c))
+        for(numWorst <- List(2000)) {
+            val boostedC45Learner = BoostedC45Learner(
+                new AbstractOnlyOrHistory(1.0, numWorst, "conf6"),
+                Pair(Some(1000), Some(200)),
+                10
+            )
+            
+            val results = boostedC45Learner.classifications(testSet, TopClassIs("15"))
+            
+            println("\n\n\n")
+            println("results for: " + numWorst + ":" + performance(results))
         }
     }
 }
@@ -138,17 +151,17 @@ class LsiHistory(val projection: Pair[Int, String], val numLsiDims: Int, val vec
     ).flatten
 }
 
-class TitleOnlyOrHistory(orThreshold: Double, vectorConf: String = "conf4", normalize: Boolean = false) extends OrHistory((0, "tit"), orThreshold, vectorConf, normalize)
-class AbstractOnlyOrHistory(orThreshold: Double, vectorConf: String = "conf4", normalize: Boolean = false) extends OrHistory((1, "abs"), orThreshold, vectorConf, normalize)
-class JournalOnlyOrHistory(orThreshold: Double, vectorConf: String = "conf2", normalize: Boolean = false) extends OrHistory((2, "jour"), orThreshold, vectorConf, normalize)
-class TermsOnlyOrHistory(orThreshold: Double, vectorConf: String = "conf2", normalize: Boolean = false) extends OrHistory((3, "ter"), orThreshold, vectorConf, normalize)
+class TitleOnlyOrHistory(orThreshold: Double, numWorst: Int, vectorConf: String = "conf4", normalize: Boolean = false) extends OrHistory((0, "tit"), orThreshold, numWorst, vectorConf, normalize)
+class AbstractOnlyOrHistory(orThreshold: Double, numWorst: Int, vectorConf: String = "conf4", normalize: Boolean = false) extends OrHistory((1, "abs"), orThreshold, numWorst, vectorConf, normalize)
+class JournalOnlyOrHistory(orThreshold: Double, numWorst: Int, vectorConf: String = "conf2", normalize: Boolean = false) extends OrHistory((2, "jour"), orThreshold, numWorst, vectorConf, normalize)
+class TermsOnlyOrHistory(orThreshold: Double, numWorst: Int, vectorConf: String = "conf2", normalize: Boolean = false) extends OrHistory((3, "ter"), orThreshold, numWorst, vectorConf, normalize)
 @serializable
-class OrHistory(val projection: Pair[Int, String], val orThreshold: Double, val vectorConf: String = "conf4", val normalize: Boolean = false) extends (TargetClassDefinition => List[HistoryItem]) {
+class OrHistory(val projection: Pair[Int, String], val orThreshold: Double, numWorst: Int, val vectorConf: String = "conf4", val normalize: Boolean = false) extends (TargetClassDefinition => List[HistoryItem]) {
     def apply(targetClassDef: TargetClassDefinition) = List(
         List(ProjectionFilter(List(projection._1), projection._2)), 
         List(VectorFromDictFilter(vectorConf)), 
         if(normalize) List(NormalizeVectorFilter()) else List(),
-        List(OddsRatioFilter(targetClassDef, orThreshold))
+        List(OddsRatioFilter(targetClassDef, orThreshold, numWorst))
     ).flatten
 }
 

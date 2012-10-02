@@ -7,6 +7,10 @@ import common.Path.filterPath
 import classifier.TargetClassDefinition
 import format.arff_json.HistoryItem
 
+object Filter {
+    val serializeFilters = false
+}
+
 trait Filter {
     def applyFilter(source: ArffJsonInstancesSource, targetClassDefinition: TargetClassDefinition): ArffJsonInstancesSource
     

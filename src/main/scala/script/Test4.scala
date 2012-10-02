@@ -18,6 +18,7 @@ object Test4 {
     }
     
     def main(args: Array[String]) {
+        println("test1")
         val res = List(
             RawClassification.fromFile(new File("data/results/final_proj-abs_vec-conf4_or-1.0-tg-01XXXX_svm_tss-1000-200_tg-01XXXX_final-test_proj-abs_vec-conf4_or-1.0-tg-01XXXX.json")),
             RawClassification.fromFile(new File("data/results/final_proj-abs_vec-conf4_or-2000.0-tg-01XXXX_c45-boost-30-tss-1000-200_tg-01XXXX_final-test_proj-abs_vec-conf4_or-2000.0-tg-01XXXX.json")),

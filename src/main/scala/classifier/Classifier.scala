@@ -10,6 +10,8 @@ import parser.ContentDescription
 import java.io.File
 
 object Classifier {
+    val serializeClassifications = false
+    
     import RawClassification._
     
     def filterAndGroup(classifications: Seq[RawClassification], certaintyThreshold: Double = 0.0) = {
@@ -71,7 +73,7 @@ abstract class Classifier(trainBase: ArffJsonInstancesSource, targetClassDef: Ta
     val trainBaseContentDescription = trainBase.contentDescription
     
     def classifications(inst: ArffJsonInstancesSource) = parent match {
-        case Some(parent) => parent.classificationsCache.getOrElseUpdate((inst, targetClassDef), {
+        case Some(parent) if Classifier.serializeClassifications => {
             val resultsFilePath = Learner.resultsFilePath(trainBaseContentDescription, targetClassDef, Some(parent), inst.contentDescription)
             
             if(resultsFilePath.exists) {
@@ -81,7 +83,7 @@ abstract class Classifier(trainBase: ArffJsonInstancesSource, targetClassDef: Ta
                 RawClassification.save(results, resultsFilePath)
                 results.toList
             }
-        })
+        }
         case None => calculateClassifications(inst).toList
     }
 }

@@ -9,22 +9,10 @@ import java.util.{TreeSet => JTreeSet}
 import java.util.Comparator
 import scala.collection.JavaConversions._
 
-trait TrainSetSelection extends Learner {
-    val numTargetInst: Option[Int]
-    val numOtherInst: Option[Int]
-    
+object TrainSetSelection {
     def preFilter(inst: ArffJsonInstance) = true
     
-    abstract override def mapInstances(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition, set: Option[ContentDescription.Set] = None) = {
-        val mappedInst = super.mapInstances(inst, targetClassDef, set)
-        if(set == Some(ContentDescription.TrainSet)) {
-            applySelection(mappedInst, targetClassDef)
-        } else {
-            mappedInst
-        }
-    }
-    
-    def applySelection(source: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition) = {
+    def applySelection(source: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition, numTargetInst: Option[Int], numOtherInst: Option[Int]) = {
         /*print("calculate centroids... ")
         val centroids = ArffJsonInstancesSource.centroids(source)
         println("done")
@@ -127,6 +115,22 @@ trait TrainSetSelection extends Learner {
             source.contentDescription
         )
     }
+}
+
+trait TrainSetSelection extends Learner {
+    val numTargetInst: Option[Int]
+    val numOtherInst: Option[Int]
+    
+    abstract override def mapInstances(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition, set: Option[ContentDescription.Set] = None) = {
+        val mappedInst = super.mapInstances(inst, targetClassDef, set)
+        if(set == Some(ContentDescription.TrainSet) && numTargetInst.isDefined && numOtherInst.isDefined) {
+            applySelection(mappedInst, targetClassDef)
+        } else {
+            mappedInst
+        }
+    }
+    
+    def applySelection(source: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition) = TrainSetSelection.applySelection(source, targetClassDef, numTargetInst, numOtherInst)
 }
 
 

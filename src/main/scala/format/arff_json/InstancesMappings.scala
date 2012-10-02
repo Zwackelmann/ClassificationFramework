@@ -57,7 +57,7 @@ object InstancesMappings {
                 
                 val _filter = currentFilterFactory match {
                     case storable: StorableFilterFactory => {
-                        if(filterFile.exists) {
+                        if(Filter.serializeFilters && filterFile.exists) {
                             println("load: " + filterFile)
                             storable.load(filterFile)
                         } else {
@@ -77,9 +77,11 @@ object InstancesMappings {
                 val underlyingInstances = apply(base, target.dropLastHistoryItem, targetClassDef, learner)
                 println("apply " + currentFilterFactory.historyAppendix + " filter on " + target.dropLastHistoryItem)
                 val mappedInstances = _filter.applyFilter(underlyingInstances, targetClassDef)
-                if(_filter.isInstanceOf[ProjectionFilter]) { //TODO HACK!!
-                    println("save instances")
+
+                if(ArffJsonInstances.serializeInstances && !mappedInstances.file.exists()) {
+                    print("save " + mappedInstances.contentDescription + "...")
                     mappedInstances.save()
+                    println("done")
                 }
                 mappedInstances
             }
