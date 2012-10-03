@@ -15,7 +15,7 @@ import parser.ArffJsonInstancesReader
 import parser.ArffJsonInstancesSource
 
 object ArffJsonInstances {
-    val serializeInstances = false
+    val serializeInstances = true
 }
 
 class ArffJsonInstances(inst: ArffJsonInstancesSource, virtualAttributes: List[Pair[ArffJsonAttribute, ArffJsonInstance => Any]] = List()) {

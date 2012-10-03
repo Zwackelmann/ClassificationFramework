@@ -103,7 +103,7 @@ object TrainSetSelection {
             }
             
             // println("average numInst by group: " + (currentInstByGroup.values.reduceLeft(_ + _).toDouble / currentInstByGroup.values.size))
-            // println("total instances for training: " + buffer.size)
+            println("total instances for training: " + buffer.size)
             // println(currentInstByGroup.mkString("\n"))
             buffer.toList
         }

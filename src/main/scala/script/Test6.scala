@@ -28,8 +28,8 @@ import filter.NormalizeVectorFilter
 
 object Test6 {
     def main(args: Array[String]) {
-        val trainSet = new ArffJsonInstancesFile2(new File("data/arffJson/final-test_proj-abs.json"), ContentDescription("final", ContentDescription.TrainSet, List()))
-        val testSet = new ArffJsonInstancesFile2(new File("data/arffJson/final-train_proj-abs.json"), ContentDescription("final", ContentDescription.TrainSet, List()))
+        val trainSet = new ArffJsonInstancesFile2(new File("data/arffJson/exp-train_proj-abs.json"), ContentDescription("exp", ContentDescription.TrainSet, List()))
+        val testSet = new ArffJsonInstancesFile2(new File("data/arffJson/exp-test_proj-abs.json"), ContentDescription("exp", ContentDescription.TestSet, List()))
         
         def vectorFilters = for(minCount <- List(1, 3, 5, 10, 15, 25, 50, 100)) yield (
             new AdvancedVectorFromDictFilter(HistoryItem("")) {
@@ -53,8 +53,9 @@ object Test6 {
             },
             "minCount: " + minCount.toString()
         )
-        // eventuell ist es nicht sinnvoll bei dem experiment tf-idf anzuwenden, da die selten vorkommenden terme dann ein höheres gewicht bekommen
-        // es soll ja grad geschaut werden, ob auf die verzichtet werden kann - daher sollten sie vielleicht kein höheres gewicht bekommen???
+        
+        // eventuell ist es nicht sinnvoll bei dem experiment tf-idf anzuwenden, da die selten vorkommenden terme dann ein hoeheres gewicht bekommen
+        // es soll ja grad geschaut werden, ob auf die verzichtet werden kann - daher sollten sie vielleicht kein hoeheres gewicht bekommen???
         for((vectorFilter, vectorFilterName) <- vectorFilters; targetClass <- List(TopClassIs("00"), TopClassIs("15"), TopClassIs("35"))) {
             println("\n\nstart evaluating " + vectorFilterName + " | " + targetClass.filenameExtension)
             
@@ -87,13 +88,17 @@ object Test6 {
             
             println("train classifier")
             val boostedC45Classifier = new WekaClassifier(
-                lsiTrainSet,
+                    TrainSetSelection.applySelection(lsiTrainSet,
+                    targetClass,
+                    Some(1000),
+                    Some(200)
+                ),
                 targetClass
             ) {
                 def classifierConfig() = {
                     val ada = new AdaBoostM1()
                     ada.setClassifier(new J48)
-                    ada.setNumIterations(10)
+                    ada.setNumIterations(3)
                     ada
                 }
             }

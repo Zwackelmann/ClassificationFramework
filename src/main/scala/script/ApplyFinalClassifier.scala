@@ -36,11 +36,8 @@ import format.arff_json.DenseArffJsonInstance
 
 object ApplyFinalClassifier {
     def main(args: Array[String]) {
-        val testSetMini = new ArffJsonInstancesFile("final-mini", ContentDescription.TestSet, List())
-        val trainSetMini = new ArffJsonInstancesFile("final-mini", ContentDescription.TrainSet, List())
-        
-        val testSet = new ArffJsonInstancesFile("final", ContentDescription.TestSet, List())
-        val trainSet = new ArffJsonInstancesFile("final", ContentDescription.TrainSet, List())
+        val testSet = new ArffJsonInstancesFile("exp", ContentDescription.TestSet, List())
+        val trainSet = new ArffJsonInstancesFile("exp", ContentDescription.TrainSet, List())
         
         //val finalLearner = new FinalLearner2(List(
             // lsi + svm
