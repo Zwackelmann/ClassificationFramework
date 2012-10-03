@@ -332,7 +332,6 @@ object VectorFromDictFilter {
             bracedText
         }
         
-        
         object TokenGroup {
             def group(tokens: List[Token]) = {
                 val groupBuffer = new mutable.ListBuffer[Token]
@@ -428,7 +427,7 @@ object VectorFromDictFilter {
                 replaceAcronyms(
                     TokenGroup.group(
                         //splitMultipleAuthors(
-                            tokenize(sb).filter(t => t.isInstanceOf[TokenString] || t.isInstanceOf[BracedText])
+                            tokenize(sb).filter(t => t.isInstanceOf[TokenString] || t.isInstanceOf[BracedText] || t == WhiteSpace)
                         //)
                     )
                 )

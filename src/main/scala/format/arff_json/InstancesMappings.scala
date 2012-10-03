@@ -57,7 +57,7 @@ object InstancesMappings {
                 
                 val _filter = currentFilterFactory match {
                     case storable: StorableFilterFactory => {
-                        if(filterFile.exists) {
+                        if(Filter.serializeFilters && filterFile.exists) {
                             println("load: " + filterFile)
                             storable.load(filterFile)
                         } else {
@@ -71,13 +71,14 @@ object InstancesMappings {
                     case filterFactory: FilterFactory => {
                         filterFactory(apply(base, target.toTrain.dropLastHistoryItem, targetClassDef, learner))
                     }
-                    case _ => throw new RuntimeException("HistoryItem must be a FilterFactory")
+                    case _ => throw new RuntimeException("HistoryItem must be a FilterFactory to use mappings")
                 }
                 
                 val underlyingInstances = apply(base, target.dropLastHistoryItem, targetClassDef, learner)
                 println("apply " + currentFilterFactory.historyAppendix + " filter on " + target.dropLastHistoryItem)
                 val mappedInstances = _filter.applyFilter(underlyingInstances, targetClassDef)
-                if(!mappedInstances.file.exists()) {
+
+                if(ArffJsonInstances.serializeInstances && !mappedInstances.file.exists()) {
                     print("save " + mappedInstances.contentDescription + "...")
                     mappedInstances.save()
                     println("done")
@@ -87,11 +88,6 @@ object InstancesMappings {
         }
     }
 }
-
-
-
-
-
 
 
 

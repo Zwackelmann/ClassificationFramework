@@ -21,6 +21,8 @@ import format.arff_json.InstancesMappings
 import java.io.File
 
 object Learner {
+    val serializeClassifiers = false
+    
     def resultsFilePath(trainBaseCD: ContentDescription, targetClassDef: TargetClassDefinition, learner: Option[Learner], classifiedInstCd: ContentDescription) = 
         Path.resultsPath / (
             classifierFilename(trainBaseCD, targetClassDef, learner) + "_" +  
@@ -78,55 +80,63 @@ trait Learner {
         )
     }
     
-    val classifierCache = new HashMap[Pair[ArffJsonInstancesSource, TargetClassDefinition], Classifier]
-    def classifier(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition) = classifierCache.getOrElseUpdate((inst, targetClassDef), {
+    def classifier(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition) = {
         val trainBaseCd = ContentDescription(inst.contentDescription.base, ContentDescription.TrainSet, targetHistory(targetClassDef))
         val targetCd = ContentDescription(inst.contentDescription.base, inst.contentDescription.set, targetHistory(targetClassDef))
         val classifierPath = Learner.classifierPath(trainBaseCd, targetClassDef, Some(this))
         
-        println("check if " + classifierPath + " exists... ")
-        if(classifierPath.exists()) {
+        if(Learner.serializeClassifiers) {
+            println("check if " + classifierPath + " exists... ")
+        }
+        if(Learner.serializeClassifiers && classifierPath.exists()) {
             println("... yes => load classifier from file")
             loadClassifier(classifierPath)
         } else {
-            println("... no => train classifier")
+            if(Learner.serializeClassifiers) {
+                println("... no => train classifier")
+            }
             val c = trainClassifier(mapInstances(inst, targetClassDef, Some(ContentDescription.TrainSet)), targetClassDef)
-            // TODO dirty... make a savable trait or something like that for lerners... or think up something else...
-            try {
-                c.save(classifierPath)
-                println("saved " + c + " in file " + classifierPath)
-            } catch {
-                case e =>  
+            
+            if(Learner.serializeClassifiers) {
+                // TODO dirty... make a savable trait or something like that for lerners... or think up something else...
+                try {
+                    c.save(classifierPath)
+                    println("saved " + c + " in file " + classifierPath)
+                } catch {
+                    case e =>  
+                }
             }
             c
         }
-    })
+    }
     
-    val classificationsCache = new HashMap[Pair[ArffJsonInstancesSource, TargetClassDefinition], List[RawClassification]]
-    def classifications(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition) = classificationsCache.getOrElseUpdate((inst, targetClassDef), {
+    def classifications(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition) = {
         val trainBaseCd = ContentDescription(inst.contentDescription.base, ContentDescription.TrainSet, targetHistory(targetClassDef))
         val targetCd = ContentDescription(inst.contentDescription.base, inst.contentDescription.set, targetHistory(targetClassDef))
         
-        val resultsFilePath = Learner.resultsFilePath(trainBaseCd, targetClassDef, Some(this), targetCd)
-        println("check if " + resultsFilePath + " exists... ")
-        if(resultsFilePath.exists) {
-            println("... yes => load results from file")
-            RawClassification.fromFile(resultsFilePath)
+        if(Classifier.serializeClassifications) {
+            val resultsFilePath = Learner.resultsFilePath(trainBaseCd, targetClassDef, Some(this), targetCd)
+            println("check if " + resultsFilePath + " exists... ")
+            if(resultsFilePath.exists) {
+                println("... yes => load results from file")
+                RawClassification.fromFile(resultsFilePath)
+            } else {
+                println("... no => calculate classifications")
+                classifier(inst, targetClassDef).classifications(mapInstances(inst, targetClassDef, None))
+            }
         } else {
-            println("... no => calculate classifications")
             classifier(inst, targetClassDef).classifications(mapInstances(inst, targetClassDef, None))
         }
-    })
+    }
     
-    val filterAndGroupCache = new HashMap[Tuple4[ArffJsonInstancesSource, TargetClassDefinition, Double, Double], Map[RawClassification.Category, Iterable[RawClassification]]]
-    def filterAndGroup(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition, positiveThreshold: Double = 0.0, certaintyThreshold: Double = 0.0) = filterAndGroupCache.getOrElseUpdate((inst, targetClassDef, positiveThreshold, certaintyThreshold), {
+    def filterAndGroup(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition, positiveThreshold: Double = 0.0, certaintyThreshold: Double = 0.0) = {
         Map(
             TRUE_POSITIVE -> List(),
             FALSE_POSITIVE -> List(),
             TRUE_NEGATIVE -> List(),
             FALSE_NEGATIVE -> List()
         ) ++ classifications(inst, targetClassDef).filter(c => math.abs(c.classification - positiveThreshold) > certaintyThreshold).groupBy(_.cat)
-    })
+    }
     
     def precision(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition, certaintyThreshold: Double = 0.0) = {
         val filteredAndGrouped = filterAndGroup(inst, targetClassDef, certaintyThreshold)
