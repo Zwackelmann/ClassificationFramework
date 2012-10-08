@@ -10,7 +10,7 @@ import parser.ContentDescription
 import java.io.File
 
 object Classifier {
-    val serializeClassifications = false
+    val serializeClassifications = true
     
     import RawClassification._
     

@@ -8,9 +8,7 @@ class OddsRatio(source: ArffJsonInstancesSource, targetClassDef: TargetClassDefi
     
     // override def score(t: Int) = (p(t |- IsCat) * (1 - p(t |- IsNotCat)) / (1 - p(t |- IsCat)) * p(t |- IsNotCat)).approx
     override def score(term: Int) = 
-        if(numDocsCatAndTerm(term) != 0 && numDocsNotCatAndNotTerm(term) != 0 && numDocsCatAndNotTerm(term) != 0 && numDocsNotCatAndTerm(term) != 0) {
-            (numDocsCatAndTerm(term).toLong * numDocsNotCatAndNotTerm(term)) / (numDocsCatAndNotTerm(term).toLong * numDocsNotCatAndTerm(term))
-        } else {
-            Double.NaN
-        }
+        if(numDocsCatAndTerm(term) == 0 || numDocsNotCatAndNotTerm(term) == 0) 0
+        else if(numDocsCatAndNotTerm(term) == 0 || numDocsNotCatAndTerm(term) == 0) Double.PositiveInfinity
+        else (numDocsCatAndTerm(term).toLong * numDocsNotCatAndNotTerm(term)).toDouble / (numDocsCatAndNotTerm(term).toLong * numDocsNotCatAndTerm(term))
 }

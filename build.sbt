@@ -16,6 +16,12 @@ libraryDependencies += "net.sf.json-lib" % "json-lib" % "2.4"
 
 fullRunTask(classifyRun, Test, "script.ApplyFinalClassifier")
 
+fullRunTask(testingRun, Test, "script.Test6")
+
 javaOptions in classifyRun += "-Xmx2000m"
 
+javaOptions in testingRun += "-Xmx2000m"
+
 fork in classifyRun := true
+
+fork in testingRun := true

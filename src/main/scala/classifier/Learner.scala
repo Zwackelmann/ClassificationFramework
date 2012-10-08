@@ -21,7 +21,7 @@ import format.arff_json.InstancesMappings
 import java.io.File
 
 object Learner {
-    val serializeClassifiers = false
+    val serializeClassifiers = true
     
     def resultsFilePath(trainBaseCD: ContentDescription, targetClassDef: TargetClassDefinition, learner: Option[Learner], classifiedInstCd: ContentDescription) = 
         Path.resultsPath / (

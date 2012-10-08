@@ -6,4 +6,5 @@ object ClassificationFrameworkBuild extends Build {
     lazy val weka = ProjectRef(id = "weka", base = file("../Weka"))
 	
 	lazy val classifyRun = TaskKey[Unit]("classify")
+	lazy val testingRun = TaskKey[Unit]("testing")
 }

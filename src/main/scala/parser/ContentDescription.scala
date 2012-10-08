@@ -2,7 +2,6 @@ package parser
 
 import common.Path.arffJsonPath
 import format.arff_json.HistoryItem
-import format.arff_json.HistoryItem
 
 object ContentDescription {
     trait Set {

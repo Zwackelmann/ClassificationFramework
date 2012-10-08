@@ -61,7 +61,7 @@ object Test6 {
             
             val (lsiTrainSet, lsiTestSet) = {
                 val (normalizedTrainSet, normalizedTestSet) = {
-                    val (tfIdfTrainSet, tfIdfTestSet) = {
+                    //val (tfIdfTrainSet, tfIdfTestSet) = {
                         val (vectorTrainSet, vectorTestSet) = {
                             println("buldDict")
                             vectorFilter.buildDict(trainSet)
@@ -69,14 +69,14 @@ object Test6 {
                             (trainSet.applyFilter(vectorFilter), testSet.applyFilter(vectorFilter))
                         }
                         
-                        println("train tf idf")
+                        /*println("train tf idf")
                         val tfIdfFilter = new TfIdfFilter(vectorTrainSet, HistoryItem(""))
                         println("apply tf idf filter")
                         (vectorTrainSet.applyFilter(tfIdfFilter), vectorTestSet.applyFilter(tfIdfFilter))
-                    }
+                    }*/
                     
                     val normalizeFilter = new NormalizeVectorFilter(HistoryItem(""))
-                    (tfIdfTrainSet.applyFilter(normalizeFilter), tfIdfTestSet.applyFilter(normalizeFilter))
+                    (vectorTrainSet.applyFilter(normalizeFilter), vectorTestSet.applyFilter(normalizeFilter))
                 }
                 println("train lsi")
                 val lsiFilter = new GensimLsiFilter(500, HistoryItem(""))

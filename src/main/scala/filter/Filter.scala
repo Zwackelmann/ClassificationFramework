@@ -8,7 +8,7 @@ import classifier.TargetClassDefinition
 import format.arff_json.HistoryItem
 
 object Filter {
-    val serializeFilters = false
+    val serializeFilters = true
 }
 
 trait Filter {

@@ -20,6 +20,7 @@ abstract class Dictionary extends Iterable[String] {
     @transient lazy val dirtyFlag = new DirtyFlag
     @transient lazy val _dict: JavaSet[String] = new TreeSet[String]()
     @transient lazy val _wordToIndexMap = new HashMap[String, Int]
+    @transient lazy val _indexToWordMap = new HashMap[Int, String]
     val dictCount = new HashMap[String, Int]
     
     def iterator = dict.iterator
@@ -28,10 +29,12 @@ abstract class Dictionary extends Iterable[String] {
         if(dirtyFlag.isDirty) {
             _dict.clear()
             _wordToIndexMap.clear()
+            _indexToWordMap.clear()
             
             _dict ++= dictCount.filter(w => w._2 > minWordCount).map(_._1)
             for((word, i) <- (_dict.zipWithIndex)) {
                 _wordToIndexMap.put(word, i)
+                _indexToWordMap.put(i, word)
             }
             
             dirtyFlag.isDirty = false
@@ -42,6 +45,11 @@ abstract class Dictionary extends Iterable[String] {
     def dict = {
         update
         _dict
+    }
+    
+    def wordFromIndex(index: Int) = {
+        update
+        _indexToWordMap(index)
     }
     
     def wordIndex(word: String) = {

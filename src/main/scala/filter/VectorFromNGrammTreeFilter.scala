@@ -13,6 +13,8 @@ import parser.ContentDescription
 import common.Common.FileConversion._
 
 object VectorFromNGramTreeFilter {
+    import filter.VectorFromDictFilter.AdvancedTokenizer._
+    
     def apply(confName: String, nGrams: Iterable[List[String]]): FilterFactory = {
         new StorableFilterFactory {
             def apply(trainBase: ArffJsonInstancesSource) = {
@@ -32,28 +34,34 @@ object VectorFromNGramTreeFilter {
     
     @serializable
     class Conf1(nGrams: Iterable[List[String]], historyAppendix: HistoryItem) extends VectorFromNGramTreeFilter(nGrams, historyAppendix) {
+        val wordTransformFunction = (word: String) => stemmer.stem(word
+            .filter(c => c.isDigit || c.isLetter)
+            .toLowerCase()
+        )
+        
         override def inst2Words(inst: ArffJsonInstance) = {
-            inst.data(0)
-                .asInstanceOf[String]
-                .toLowerCase()
-                .split("[\\s+\\.,]")
-                .map(s => s.filter(c => c == '-' || c.isLetter || c.isDigit || c.isWhitespace))
-                .map(s => if(s == "has") "ha" else s)
-                .filter(_ != "")
-                .toSeq
+            val text = inst.data(0).asInstanceOf[String]
+            val words = tokenize(text)
+                .filter(t => t.isInstanceOf[TokenString])
+                .map(t => wordTransformFunction(t.asInstanceOf[TokenString].str))
+            
+            words
         }
     }
 }
 
 @serializable
 abstract class VectorFromNGramTreeFilter(nGrams: Iterable[List[String]], val historyAppendix: HistoryItem) extends GlobalFilter {
+    @transient lazy val stemmer = new PorterStemmer()
+    val wordTransformFunction: (String => String)
+    
     def inst2Words(inst: ArffJsonInstance): Seq[String]
     
-    val dict: NGramTree = {
+    lazy val dict: NGramTree = {
         val buffer = new NGramTreeBuffer
         
         for(nGram <- nGrams) {
-            buffer += nGram
+            buffer += nGram.map(part => wordTransformFunction(part))
         }
         
         buffer.toNGrammTree
@@ -78,3 +86,20 @@ abstract class VectorFromNGramTreeFilter(nGrams: Iterable[List[String]], val his
         )
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

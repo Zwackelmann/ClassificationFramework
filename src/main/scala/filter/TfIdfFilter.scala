@@ -41,7 +41,10 @@ class TfIdfFilter(source: ArffJsonInstancesSource, val historyAppendix: HistoryI
         source.map(
             elemFun = elements => elements.map(inst => {
                 val data = for((key, value) <- inst.sparseData) yield {
-                    key -> (value * math.log((numDocuments + 0.5) / (tf.getOrElse(key, 0) + 0.5)))
+                    if(value == 0) key -> 0.0 
+                    else {
+                        key -> (value * math.log((numDocuments + 0.5) / (tf.getOrElse(key, 0) + 0.5)))
+                    }
                 }
                 
                 new SparseArffJsonInstance(inst.id, inst.mscClasses, data, inst.numAttributes())

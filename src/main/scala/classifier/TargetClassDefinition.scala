@@ -10,7 +10,7 @@ object TopClassIs {
 
 @serializable
 class TopClassIs(val targetClass: String) extends TargetClassDefinition {
-    def apply(classes: List[String]) = classes.exists(_.substring(0, 2) == targetClass)
+    def apply(classes: List[String]) = classes.exists(_.substring(0, 2).toInt == targetClass.toInt)
     override def toString = "TopClassIs(" + targetClass + ")"
     override def filenameExtension = "tg-" + targetClass + "XXXX"
 }

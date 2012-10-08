@@ -33,6 +33,7 @@ import common.Common.FileConversion._
 import format.arff_json.ArffJsonHeader
 import format.arff_json.SparseArffJsonInstance
 import format.arff_json.DenseArffJsonInstance
+import filter.ScalingOddsRatioFilter
 
 object ApplyFinalClassifier {
     def main(args: Array[String]) {
@@ -59,11 +60,11 @@ object ApplyFinalClassifier {
                 Pair(Some(1000), Some(200))
             ),*/
             // or + boosted c45
-            val boostedC45Learner = BoostedC45Learner(
+            /*val boostedC45Learner = BoostedC45Learner(
                 new AbstractOnlyOrHistory(1.0, 2000, "conf6"),
                 Pair(Some(1000), Some(200)),
                 10
-            )/*, 
+            )*//*, 
             BoostedC45Learner(
                 new TitleOnlyOrHistory(1.0),
                 Pair(Some(1000), Some(200)), 
@@ -110,55 +111,201 @@ object ApplyFinalClassifier {
         // ngramclassifier.classifications(testset, TopClassIs("13"))
         
         def performance(results: Seq[RawClassification]) = {
-            
             val prec = Classifier.precision(results, 0)
             val rec = Classifier.recall(results, 0)
             val f = Classifier.fMeasure(results, 1.0, 0)
             
-            (prec, rec, f)
+            def format(number: Double) = "%.4f".format(number).toString.replaceAllLiterally(",", ".")
+            
+            "(" + format(prec) + ", " + format(rec) + ", " + format(f) + ")"
         }
         
         
-        for(numWorst <- List(2000)) {
-            val boostedC45Learner = BoostedC45Learner(
-                new AbstractOnlyOrHistory(1.0, numWorst, "conf6"),
-                Pair(Some(1000), Some(200)),
-                10
+        /*println("local1")
+        for(targetClass <- List(TopClassIs("15"), TopClassIs("35"))) {
+            println("\n\ntopClass = " + targetClass)
+            val svmLearner = SvmLearner(
+                new AbstractOnlyLsiHistory(500, true, true, true),
+                Pair(None, None)
             )
             
-            val results = boostedC45Learner.classifications(testSet, TopClassIs("15"))
+            val results = svmLearner.classifications(testSet, targetClass)
             
             println("\n\n\n")
-            println("results for: " + numWorst + ":" + performance(results))
+            println("results minus: true, topClass = " + targetClass + ": " + performance(results))
+            
+            val svmLearner2 = SvmLearner(
+                new AbstractOnlyLsiHistory(500, false, true, true),
+                Pair(None, None)
+            )
+            
+            val results2 = svmLearner2.classifications(testSet, targetClass)
+            
+            println("\n\n\n")
+            println("results minus: false, topClass = " + targetClass + ": " + performance(results2))
+        }*/
+        
+        
+        /*println("tbdb1")
+        for(targetClass <- List(TopClassIs("00"), TopClassIs("01"), TopClassIs("13"), TopClassIs("15"), TopClassIs("35"))) {
+            println("\n\ntopClass = " + targetClass)
+            val sorC45Learner = C45Learner(
+                new AbstractOnlyScalingOrHistory(1.0, 1000, 1.0, false),
+                Pair(Some(1000), Some(200))
+            )
+            
+            val results = sorC45Learner.classifications(testSet, targetClass)
+            
+            println("\n\n")
+            println("topClass = " + targetClass + ": " + performance(results))
+            println("\n\n")
+        }*/
+        
+        /*println("local2")
+        for(targetClass <- List(TopClassIs("00"), TopClassIs("01"), TopClassIs("15"), TopClassIs("35"))) {
+            println("\n\ntopClass = " + targetClass)
+            val svmLearner = SvmLearner(
+                new AbstractOnlyLsiHistory(500, "conf7", true, true),
+                Pair(None, None)
+            )
+            
+            val results = svmLearner.classifications(testSet, targetClass)
+            
+            println("\n\n\n")
+            println("results conf7, topClass = " + targetClass + ": " + performance(results))
+            
+            val svmLearner2 = SvmLearner(
+                new AbstractOnlyLsiHistory(500, "conf8", true, true),
+                Pair(None, None)
+            )
+            
+            val results2 = svmLearner2.classifications(testSet, targetClass)
+            
+            println("\n\n\n")
+            println("results conf8, topClass = " + targetClass + ": " + performance(results2))
+        }*/
+        
+        /*println("local3")
+        for(targetClass <- common.Common.topClasses.map(TopClassIs(_))) {
+            println("\n\ntopClass = " + targetClass)
+            val svmLearner = SvmLearner(
+                new AbstractOnlyLsiHistory(500, "conf7", true, true),
+                Pair(None, None)
+            )
+            
+            val results = svmLearner.classifications(testSet, targetClass)
+            
+            println("\n\n\n")
+            println("results conf7, topClass = " + targetClass + ": " + performance(results))
+            
+            val svmLearner2 = SvmLearner(
+                new AbstractOnlyLsiHistory(500, "conf8", true, true),
+                Pair(None, None)
+            )
+            
+            val results2 = svmLearner2.classifications(testSet, targetClass)
+            
+            println("\n\n\n")
+            println("results conf8, topClass = " + targetClass + ": " + performance(results2))
+        }*/
+        
+        /*println("tbdb2")
+        for(targetClass <- List(TopClassIs("00"), TopClassIs("01"), TopClassIs("13"), TopClassIs("15"), TopClassIs("35"), TopClassIs("91"))) {
+            println("\n\ntopClass = " + targetClass)
+            val sorC45Learner = C45Learner(
+                new AbstractOnlyScalingOrHistory(1.0, 1000, 1.0, true),
+                Pair(Some(1000), Some(200))
+            )
+            
+            val results = sorC45Learner.classifications(testSet, targetClass)
+            
+            println("\n\n")
+            println("topClass = " + targetClass + ": " + performance(results))
+            println("\n\n")
+        }*/
+        
+        /*println("tbdb3")
+        for(targetClass <- List(TopClassIs("00"), TopClassIs("01"), TopClassIs("13"), TopClassIs("15"), TopClassIs("35"), TopClassIs("91"))) {
+            println("\n\ntopClass = " + targetClass)
+            val sorC45Learner = C45Learner(
+                new AbstractOnlyOrHistory(1.0, 1000, true),
+                Pair(Some(1000), Some(200))
+            )
+            
+            val results = sorC45Learner.classifications(testSet, targetClass)
+            
+            println("\n\n")
+            println("topClass = " + targetClass + ": " + performance(results))
+            println("\n\n")
+        }*/
+        
+        println("tbdb4")
+        for(targetClass <- List(TopClassIs("00"), TopClassIs("01"), TopClassIs("08"), TopClassIs("13"), TopClassIs("15"), TopClassIs("35"), TopClassIs("91"))) {
+            println("\n\ntopClass = " + targetClass)
+            val sorC45Learner = C45Learner(
+                new AbstractOnlyScalingOrHistory(1.0, 1000, 1.0, false),
+                Pair(Some(1000), Some(200))
+            )
+            
+            val results = sorC45Learner.classifications(testSet, targetClass)
+            
+            println("\n\n")
+            println("topClass = " + targetClass + ": " + performance(results))
+            println("\n\n")
         }
+        
+        /*for(minCount <- List(3, 5, 10, 15, 25, 50, 100); targetClass <- List(TopClassIs("01"), TopClassIs("15"), TopClassIs("35"))) {
+            println("\n\nstarted minCount = " + minCount + ", topClass = " + targetClass)
+            val svmLearner = SvmLearner(
+                //new AbstractOnlyLsiHistory(500, "conf6", minCount, true, true),
+                new AbstractOnlyScalingOrHistory(1.0, 0, minCount),
+                Pair(None, None)
+            )
+            
+            val results = svmLearner.classifications(testSet, targetClass)
+            
+            println("\n\n\n")
+            println("results for minCount = " + minCount + ", topClass = " + targetClass + ": " + performance(results))
+        }*/
     }
 }
 
 
-class TitleOnlyLsiHistory(numLsiDims: Int, vectorConf: String = "conf4", tfIdf: Boolean = true, normalize: Boolean = false) extends LsiHistory((0, "tit"), numLsiDims, vectorConf, tfIdf, normalize)
-class AbstractOnlyLsiHistory(numLsiDims: Int, vectorConf: String = "conf4", tfIdf: Boolean = true, normalize: Boolean = false) extends LsiHistory((1, "abs"), numLsiDims, vectorConf, tfIdf, normalize)
+class TitleOnlyLsiHistory(numLsiDims: Int, confName: String, tfIdf: Boolean = true, normalize: Boolean = false) extends LsiHistory((0, "tit"), numLsiDims, confName, tfIdf, normalize)
+class AbstractOnlyLsiHistory(numLsiDims: Int, confName: String, tfIdf: Boolean = true, normalize: Boolean = false) extends LsiHistory((1, "abs"), numLsiDims, confName, tfIdf, normalize)
 @serializable
-class LsiHistory(val projection: Pair[Int, String], val numLsiDims: Int, val vectorConf: String = "conf4", val tfIdf: Boolean = true, val normalize: Boolean = false) extends (TargetClassDefinition => List[HistoryItem]) {
+class LsiHistory(val projection: Pair[Int, String], val numLsiDims: Int, val confName: String, val tfIdf: Boolean = true, val normalize: Boolean = false) extends (TargetClassDefinition => List[HistoryItem]) {
     def apply(targetClassDef: TargetClassDefinition) = List(
         List(ProjectionFilter(List(projection._1), projection._2)), 
-        List(VectorFromDictFilter(vectorConf)), 
+        List(VectorFromDictFilter(confName)), 
         if(tfIdf) List(TfIdfFilter()) else List(), 
         if(normalize) List(NormalizeVectorFilter()) else List(),
         List(GensimLsiFilter(numLsiDims))
     ).flatten
 }
 
-class TitleOnlyOrHistory(orThreshold: Double, numWorst: Int, vectorConf: String = "conf4", normalize: Boolean = false) extends OrHistory((0, "tit"), orThreshold, numWorst, vectorConf, normalize)
-class AbstractOnlyOrHistory(orThreshold: Double, numWorst: Int, vectorConf: String = "conf4", normalize: Boolean = false) extends OrHistory((1, "abs"), orThreshold, numWorst, vectorConf, normalize)
-class JournalOnlyOrHistory(orThreshold: Double, numWorst: Int, vectorConf: String = "conf2", normalize: Boolean = false) extends OrHistory((2, "jour"), orThreshold, numWorst, vectorConf, normalize)
-class TermsOnlyOrHistory(orThreshold: Double, numWorst: Int, vectorConf: String = "conf2", normalize: Boolean = false) extends OrHistory((3, "ter"), orThreshold, numWorst, vectorConf, normalize)
+class TitleOnlyOrHistory(orThreshold: Double, numWorst: Int, minus: Boolean, normalize: Boolean = false) extends OrHistory((0, "tit"), orThreshold, numWorst, minus, normalize)
+class AbstractOnlyOrHistory(orThreshold: Double, numWorst: Int, minus: Boolean, normalize: Boolean = false) extends OrHistory((1, "abs"), orThreshold, numWorst, minus, normalize)
+class JournalOnlyOrHistory(orThreshold: Double, numWorst: Int, minus: Boolean, normalize: Boolean = false) extends OrHistory((2, "jour"), orThreshold, numWorst, minus, normalize)
+class TermsOnlyOrHistory(orThreshold: Double, numWorst: Int, minus: Boolean, normalize: Boolean = false) extends OrHistory((3, "ter"), orThreshold, numWorst, minus, normalize)
 @serializable
-class OrHistory(val projection: Pair[Int, String], val orThreshold: Double, numWorst: Int, val vectorConf: String = "conf4", val normalize: Boolean = false) extends (TargetClassDefinition => List[HistoryItem]) {
+class OrHistory(val projection: Pair[Int, String], val orThreshold: Double, numWorst: Int, val minus: Boolean, val normalize: Boolean = false) extends (TargetClassDefinition => List[HistoryItem]) {
     def apply(targetClassDef: TargetClassDefinition) = List(
         List(ProjectionFilter(List(projection._1), projection._2)), 
-        List(VectorFromDictFilter(vectorConf)), 
+        List(VectorFromDictFilter.conf6Minus(minus)), 
         if(normalize) List(NormalizeVectorFilter()) else List(),
         List(OddsRatioFilter(targetClassDef, orThreshold, numWorst))
+    ).flatten
+}
+
+class AbstractOnlyScalingOrHistory(orThreshold: Double, numWorst: Int, shift: Double, normalize: Boolean = false) extends ScalingOrHistory((1, "abs"), orThreshold, numWorst, shift, normalize)
+@serializable
+class ScalingOrHistory(val projection: Pair[Int, String], val orThreshold: Double, numWorst: Int, shift: Double, val normalize: Boolean = false) extends (TargetClassDefinition => List[HistoryItem]) {
+    def apply(targetClassDef: TargetClassDefinition) = List(
+        List(ProjectionFilter(List(projection._1), projection._2)), 
+        List(VectorFromDictFilter("conf8")), 
+        List(ScalingOddsRatioFilter(targetClassDef, orThreshold, numWorst, shift)),
+        if(normalize) List(NormalizeVectorFilter()) else List()
     ).flatten
 }
 

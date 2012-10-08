@@ -31,6 +31,8 @@ object VectorFromDictFilter {
                     case "conf4" => new Conf4(this)
                     case "conf5" => new Conf5(this)
                     case "conf6" => new Conf6(this)
+                    case "conf7" => new Conf7(this)
+                    case "conf8" => new Conf8(this)
                     case _ => throw new RuntimeException("Unknown VectorFromDictFilter configuration: " + confName)
                 }
                 filter.buildDict(trainBase)
@@ -38,6 +40,44 @@ object VectorFromDictFilter {
             }
             
             val historyAppendix = "vec-" + confName
+            
+            def load(file: File) = common.ObjectToFile.readObjectFromFile(file).asInstanceOf[VectorFromDictFilter]
+        }
+    }
+    
+    def conf6Minus(minus: Boolean) = {
+        new StorableFilterFactory {
+            def apply(trainBase: ArffJsonInstancesSource) = {
+                val filter = new Conf6(this)  {
+                    override val dict = new Dictionary {
+                        override val minWordCount = 15
+                    }
+                    
+                    override val separators = List(',', '.', ';', ':') ++ (if(minus) List('-') else List())
+                }
+                filter.buildDict(trainBase)
+                filter
+            }
+            
+            val historyAppendix = "vec6-" + (if(minus) "w" else "wht") + "-min"
+            
+            def load(file: File) = common.ObjectToFile.readObjectFromFile(file).asInstanceOf[VectorFromDictFilter]
+        }
+    }
+    
+    def conf6MinCount(minCount: Int) = {
+        new StorableFilterFactory {
+            def apply(trainBase: ArffJsonInstancesSource) = {
+                val filter = new Conf6(this)  {
+                    override val dict = new Dictionary {
+                        override val minWordCount = minCount
+                    }
+                }
+                filter.buildDict(trainBase)
+                filter
+            }
+            
+            val historyAppendix = "vec6-min-" + minCount
             
             def load(file: File) = common.ObjectToFile.readObjectFromFile(file).asInstanceOf[VectorFromDictFilter]
         }
@@ -147,189 +187,129 @@ object VectorFromDictFilter {
     }
     
     class Conf6(val historyAppendix: HistoryItem) extends VectorFromDictFilter {
-        @transient lazy val stemmer = new PorterStemmer
-    
-        def splitMultipleAuthors(tokens: List[Token]) = {
-            tokens.flatMap(t => 
-                t match {
-                    case a: Author => a.split
-                    case t => List(t)
-                }
-            )
-        }
-    
-        def replaceAcronyms(tokenGroups: List[TokenGroup]) = {
-            val acronyms = new HashMap[TokenGroup, List[TokenGroup]]
+        import AdvancedTokenizer._
+        
+        def inst2Words(inst: ArffJsonInstance) = {
+            val text = inst.data(0).asInstanceOf[String]
             
-            for((g, i) <- tokenGroups.zipWithIndex) {
-                if(g.tokens.size == 1) {
-                    g.tokens.head match {
-                        case BracedText(text) if text.size > 1 && text.forall(c => c.isUpperCase) && i>text.size => 
-                            val candidates = tokenGroups.slice(i-text.size, i)
-                            if(
-                                candidates.forall(c => c.tokens.size == 1 && c.tokens.head.isInstanceOf[TokenString]) && 
-                                text.toUpperCase.zip(
-                                    candidates.map(c => 
-                                        c.tokens.head.asInstanceOf[TokenString].str.charAt(0).toUpper
-                                    )
-                                ).map(p => p._1 == p._2).reduceLeft(_ && _)) {
-                                acronyms += (new TokenGroup(List(new TokenString(text))) -> candidates)
-                            }
-                        case _ => 
-                    }
-                }
-            }
-            
-            tokenGroups.flatMap(t => {
-                if(acronyms.keySet.contains(t)) 
-                    acronyms(t) 
-                else if(t.tokens.size == 1 && t.tokens.head.isInstanceOf[BracedText]) {
-                    List()
-                } else {
-                    List(t)
-                }
-            })
-        }
-    
-        def transformStringTokens(tokenGroups: List[TokenGroup]) = {
-            val stopList = new File("data/util/stoplist.txt").lines.toIndexedSeq
-            
-            tokenGroups.flatMap(g => {
-                val newGroup = new TokenGroup(g.tokens.map(t => 
-                    t match {
-                        case TokenString(text) => TokenString(
-                            if(stopList.contains(text.toLowerCase())) ""
-                            else {
-                                stemmer.stem(
-                                    text
-                                        .toLowerCase()
-                                        .replaceAll("""\\[a-zA-Z]+""", "") // remove all commands
-                                        .replaceAll("""\\[^a-zA-Z]""", "") // remove escaped characters
-                                        .filter(c => c.isDigit || c.isLetter)
-                                )
-                            }
-                        )
-                        case Formula(text) => Formula(text.filter(c => !c.isWhitespace))
-                        case t => t 
-                    }
-                ).filter(t => t match {
-                    case TokenString(text) => text != ""
-                    case _: BracedText => false
-                    case _ => true
-                }))
-                
-                if(newGroup.tokens.size == 0) List()
-                else List(newGroup)
-            })
-        }
-    
-        def tokenize(text: StringBuffer) = {
-            val tokenList = new mutable.ListBuffer[Token]
-            
-            while(text.length > 0) {
-                tokenList += nextToken(text)
-            }
-            
-            Token.compress(tokenList.toList)
-        }
-    
-        def nextToken(text: StringBuffer): Token = {
-            text.charAt(0) match {
-                case '$' =>
-                    try {
-                        readFormula(text)
-                    } catch {
-                        case _ => 
-                            val char = new TokenChar('$')
-                            text.deleteCharAt(0)
-                            char
-                    }
-                case '[' =>
-                    readReference(text)
-                case '{' if text.length > 4 && text.substring(1, 4) == "\\it " => 
-                    readAuthor(text)
-                case '(' => 
-                    readBracedText(text)
-                case c if c == '.' || c == ':' || c == ',' || c == ';' =>
-                    val char = new SeparatorChar(c)
-                    text.deleteCharAt(0)
-                    char
-                case c if c.isWhitespace => 
-                    text.deleteCharAt(0)
-                    WhiteSpace
-                case c => 
-                    val char = new TokenChar(c)
-                    text.deleteCharAt(0)
-                    char
-            }
-        }
-    
-        def readFormula(text: StringBuffer) = {
-            if(text.charAt(0) != '$') error("first char must be a dollar if readFormula funciton is called")
-            
-            var i = 0
-            var iFrom = 0
-            var iTo = 0
-            
-            while(i < text.length && text.charAt(i) == '$') {
-                i += 1
-            }
-            iFrom = i
-            if(iFrom > 2) error("there were 3 dollars to introduce a formula...")
-            
-            while(i < text.length && text.charAt(i) != '$') {
-                i += 1
-            }
-            iTo = i
-            
-            while(i < text.length && text.charAt(i) == '$') {
-                i += 1
-            }
-            
-            if(iFrom != (i - iTo)) error("the number of opening and closing dollar signs do not match: " + text)
-            
-            val formula = new Formula(text.substring(iFrom, iTo))
-            text.delete(0, i)
-            formula
-        }
-    
-        def readReference(text: StringBuffer) = {
-            if(text.charAt(0) != '[') error("first char must be a opening square bracket if readReference funciton is called")
-            
-            var i = 1
-            while(i < text.length && text.charAt(i) != ']') {
-                i += 1
-            }
-            
-            val sourceLink = new Reference(text.substring(1, i))
-            text.delete(0, i+1)
-            sourceLink
-        }
-    
-        def readAuthor(text: StringBuffer) = {
-            if(text.substring(0, 5) != "{\\it ") error("an author link must start with \"{\\it \"")
-            
-            var i = 4
-            while(i < text.length && text.charAt(i) != '}') {
-                i += 1
-            }
-            
-            val authorLink = new Author(text.substring(5, i))
-            text.delete(0, i+1)
-            authorLink
+            transformStringTokens(
+                replaceAcronyms(
+                    TokenGroup.group(
+                        //splitMultipleAuthors(
+                            tokenize(text, separators).filter(t => !(t.isInstanceOf[Author] || t.isInstanceOf[Formula] || t.isInstanceOf[Reference]))
+                        //)
+                    )
+                )
+            ).map(_.toString)
         }
         
-        def readBracedText(text: StringBuffer) = {
-            if(text.charAt(0) != '(') error("first char must be a opening brace if readBracedText funciton is called")
+        val separators = List('.', ':', ';', ',')
+        
+        override val dict = new Dictionary() {
             
-            var i = 1
-            while(i < text.length && text.charAt(i) != ')') {
-                i += 1
+        }
+    }
+    
+    class Conf7(val historyAppendix: HistoryItem) extends VectorFromDictFilter {
+        // only strings - ignore authors/formulas/references
+        // strings to lower - filtered for digits and letters - stemmed
+        // minus is seperator
+        // min count is 10
+        
+        import AdvancedTokenizer._
+        
+        val wordTransformFunction = (word: String) => if(stopList.contains(word.toLowerCase())) "" else { 
+            stemmer.stem(word
+                .filter(c => c.isDigit || c.isLetter)
+                .toLowerCase()
+            )
+        }
+        
+        def inst2Words(inst: ArffJsonInstance) = {
+            val text = inst.data(0).asInstanceOf[String]
+            val words = tokenize(text, separators)
+                .filter(t => t.isInstanceOf[TokenString])
+                .map(t => wordTransformFunction(t.asInstanceOf[TokenString].str))
+                .filter(t => t != "")
+                
+            words
+        }
+        
+        val separators = List('.', ':', ';', ',', '-')
+        
+        override val dict = new Dictionary() {
+            override val minWordCount = 10
+        }
+    }
+    
+    class Conf8(val historyAppendix: HistoryItem) extends VectorFromDictFilter {
+        // strings/authors/formulas - ignore references
+        // strings to lower - filtered for digits and letters - stemmed
+        // authors to lower - formulas without spaces
+        // minus is seperator
+        // min count is 10
+        
+        import AdvancedTokenizer._
+        
+        val wordTransformFunction = (word: String) => stemmer.stem(word
+            .filter(c => c.isDigit || c.isLetter)
+            .toLowerCase()
+        )
+        
+        def inst2Words(inst: ArffJsonInstance) = {
+            val text = inst.data(0).asInstanceOf[String]
+            val words = tokenize(text, separators)
+                .flatMap(t => 
+                    t match {
+                        case TokenString(str) => if(stopList.contains(str)) List() else List(wordTransformFunction(str))
+                        case Author(str) => List("{" + str.toLowerCase() + "}")
+                        case Formula(str) => List("$" + str.filter(c => c.isDigit || c.isLetter).toLowerCase() + "$")
+                        case _ => List()
+                    }
+                    
+                )
+                
+            words
+        }
+        
+        val separators = List('.', ':', ';', ',', '-')
+        
+        override val dict = new Dictionary() {
+            override val minWordCount = 10
+        }
+    }
+    
+    object AdvancedTokenizer {
+        @transient lazy val stemmer = new PorterStemmer
+        @transient lazy val stopList = new File("data/util/stoplist.txt").lines.map(_.toLowerCase()).toIndexedSeq
+        @serializable trait Token
+        
+        case object WhiteSpace extends Token
+        case class SeparatorChar(val c: Char) extends Token
+        case class TokenChar(val c: Char) extends Token
+        case class TokenString(val str: String) extends Token {
+            override def toString = str
+        }
+        case class Reference(val text: String) extends Token {
+            val zblRe = """.*Zbl ([0-9]+\.[0-9]+).*""".r
+            
+            override def toString = {
+                "[" + (text match {
+                    case zblRe(nr) => nr
+                    case x => text
+                }) + "]"
             }
+        }
+        case class Author(val text: String) extends Token {
+            def split = text.split(", ").toList.map(t => Author(t))
             
-            val bracedText = new BracedText(text.substring(1, i))
-            text.delete(0, i+1)
-            bracedText
+            override def toString = "{" + text + "}"
+        }
+        case class Formula(val text: String) extends Token {
+            override def toString = "$" + text + "$"
+        }
+        case class BracedText(val text: String) extends Token {
+            override def toString = "(" + text + ")"
         }
         
         object TokenGroup {
@@ -366,6 +346,8 @@ object VectorFromDictFilter {
         
         case class TokenGroup(val tokens: List[Token]) {
             override def hashCode() = tokens.hashCode()
+            
+            override def toString = tokens.map(_.toString).mkString(" <-> ")
         }
         
         @serializable
@@ -394,50 +376,209 @@ object VectorFromDictFilter {
             }
         }
         
-        @serializable
-        trait Token
         
-        @serializable case object WhiteSpace extends Token
-        @serializable case class SeparatorChar(val c: Char) extends Token
-        @serializable case class TokenChar(val c: Char) extends Token
-        @serializable case class TokenString(val str: String) extends Token
-        @serializable case class Reference(val text: String) extends Token {
-            val zblRe = """.*Zbl ([0-9]+\.[0-9]+).*""".r
+        def tokenize(text: String, separators: List[Char] = List('.', ':', ';', ',')) = {
+            val sb = new StringBuffer()
+            sb.append(text)
+            val tokenList = new mutable.ListBuffer[Token]
             
-            override def toString = {
-                "Reference(" + (text match {
-                    case zblRe(nr) => nr
-                    case x => text
-                }) + ")"
+            while(sb.length > 0) {
+                tokenList += nextToken(sb, separators)
+            }
+            
+            Token.compress(tokenList.toList)
+        }
+    
+        
+        def nextToken(text: StringBuffer, separators: List[Char]): Token = {
+            text.charAt(0) match {
+                case '$' =>
+                    try {
+                        readFormula(text)
+                    } catch {
+                        case _ => 
+                            val char = new TokenChar('$')
+                            text.deleteCharAt(0)
+                            char
+                    }
+                case '[' =>
+                    try {
+                        readReference(text)
+                    } catch {
+                        case _ => 
+                            val char = new TokenChar('[')
+                            text.deleteCharAt(0)
+                            char
+                    }
+                case '{' if text.length > 4 && text.substring(1, 4) == "\\it " => 
+                    readAuthor(text)
+                case '(' => 
+                    readBracedText(text)
+                case c if separators.contains(c) =>
+                    val char = new SeparatorChar(c)
+                    text.deleteCharAt(0)
+                    char
+                case c if c.isWhitespace => 
+                    text.deleteCharAt(0)
+                    WhiteSpace
+                case c => 
+                    val char = new TokenChar(c)
+                    text.deleteCharAt(0)
+                    char
             }
         }
-        case class Author(val text: String) extends Token {
-            def split = text.split(", ").toList.map(t => Author(t))
-        }
-        case class Formula(val text: String) extends Token
-        case class BracedText(val text: String) extends Token
         
-        def inst2Words(inst: ArffJsonInstance) = {
-            val text = inst.data(0).asInstanceOf[String]
-                
-            val sb = new StringBuffer
-            sb.append(text)
+        
+        def splitMultipleAuthors(tokens: List[Token]) = {
+            tokens.flatMap(t => 
+                t match {
+                    case a: Author => a.split
+                    case t => List(t)
+                }
+            )
+        }
+    
+        
+        def replaceAcronyms(tokenGroups: List[TokenGroup]) = {
+            val acronyms = new HashMap[TokenGroup, List[TokenGroup]]
             
-            transformStringTokens(
-                replaceAcronyms(
-                    TokenGroup.group(
-                        //splitMultipleAuthors(
-                            tokenize(sb).filter(t => t.isInstanceOf[TokenString] || t.isInstanceOf[BracedText] || t == WhiteSpace)
-                        //)
-                    )
-                )
-            ).map(_.toString)
+            for((g, i) <- tokenGroups.zipWithIndex) {
+                if(g.tokens.size == 1) {
+                    g.tokens.head match {
+                        case BracedText(text) if text.size > 1 && text.forall(c => c.isUpperCase) && i>text.size => 
+                            val candidates = tokenGroups.slice(i-text.size, i)
+                            if(
+                                candidates.forall(c => c.tokens.size == 1 && c.tokens.head.isInstanceOf[TokenString]) && 
+                                text.toUpperCase.zip(
+                                    candidates.map(c => 
+                                        c.tokens.head.asInstanceOf[TokenString].str.charAt(0).toUpper
+                                    )
+                                ).map(p => p._1 == p._2).reduceLeft(_ && _)) {
+                                acronyms += (new TokenGroup(List(new TokenString(text))) -> candidates)
+                            }
+                        case _ => 
+                    }
+                }
+            }
+            
+            tokenGroups.flatMap(t => {
+                if(acronyms.keySet.contains(t)) 
+                    acronyms(t) 
+                else if(t.tokens.size == 1 && t.tokens.head.isInstanceOf[BracedText]) {
+                    List()
+                } else {
+                    List(t)
+                }
+            })
         }
         
-        override val dict = new Dictionary {
-            override def wordFun(word: String) = word
-            override val stopList = List()
-            override def wordCond(word: String) = true
+        val defaultWordMapping = ((word: String) => {
+            if(stopList.contains(word.toLowerCase())) ""
+            else {
+                stemmer.stem(
+                    word
+                        .toLowerCase()
+                        .replaceAll("""\\[a-zA-Z]+""", "") // remove all commands
+                        .replaceAll("""\\[^a-zA-Z]""", "") // remove escaped characters
+                        .filter(c => c.isDigit || c.isLetter)
+                )
+            }
+        })
+        
+        def transformStringTokens(tokenGroups: List[TokenGroup], wordMapping: (String => String) = defaultWordMapping) = {
+            tokenGroups.flatMap(g => {
+                val newGroup = new TokenGroup(g.tokens.map(t => 
+                    t match {
+                        case TokenString(text) => TokenString(
+                            wordMapping(text)
+                        )
+                        case Formula(text) => Formula(text.filter(c => !c.isWhitespace))
+                        case t => t 
+                    }
+                ).filter(t => t match {
+                    case TokenString(text) => text != ""
+                    case _: BracedText => false
+                    case _ => true
+                }))
+                
+                if(newGroup.tokens.size == 0) List()
+                else List(newGroup)
+            })
+        }
+    
+        
+        def readFormula(text: StringBuffer) = {
+            if(text.charAt(0) != '$') error("first char must be a dollar if readFormula funciton is called")
+            
+            var i = 0
+            var iFrom = 0
+            var iTo = 0
+            
+            while(i < text.length && text.charAt(i) == '$') {
+                i += 1
+            }
+            iFrom = i
+            if(iFrom > 2) error("there were 3 dollars to introduce a formula...")
+            
+            while(i < text.length && text.charAt(i) != '$') {
+                i += 1
+            }
+            iTo = i
+            
+            while(i < text.length && text.charAt(i) == '$') {
+                i += 1
+            }
+            
+            if(iFrom != (i - iTo)) error("the number of opening and closing dollar signs do not match: " + text)
+            
+            val formula = new Formula(text.substring(iFrom, iTo))
+            text.delete(0, i)
+            formula
+        }
+    
+        
+        def readReference(text: StringBuffer) = {
+            if(text.charAt(0) != '[') error("first char must be a opening square bracket if readReference funciton is called")
+            
+            var i = 1
+            var dept = 1
+            while(i < text.length && dept > 0) {
+                if(text.charAt(i) == ']') dept -= 1
+                if(text.charAt(i) == '[') dept += 1
+                i += 1
+            }
+            
+            val sourceLink = new Reference(text.substring(1, i-1))
+            text.delete(0, i)
+            sourceLink
+        }
+    
+        
+        def readAuthor(text: StringBuffer) = {
+            if(text.substring(0, 5) != "{\\it ") error("an author link must start with \"{\\it \"")
+            
+            var i = 4
+            while(i < text.length && text.charAt(i) != '}') {
+                i += 1
+            }
+            
+            val authorLink = new Author(text.substring(5, i))
+            text.delete(0, i+1)
+            authorLink
+        }
+        
+        
+        def readBracedText(text: StringBuffer) = {
+            if(text.charAt(0) != '(') error("first char must be a opening brace if readBracedText funciton is called")
+            
+            var i = 1
+            while(i < text.length && text.charAt(i) != ')') {
+                i += 1
+            }
+            
+            val bracedText = new BracedText(text.substring(1, i))
+            text.delete(0, i+1)
+            bracedText
         }
     }
 }
@@ -464,8 +605,6 @@ abstract class VectorFromDictFilter extends GlobalFilter {
     }
     
     def applyFilter(source: ArffJsonInstancesSource) = {
-        println("use vector-filter on " + source.contentDescription)
-        
         source.map(
             elemFun = elements => elements.map(inst => {
                 val data = new TreeMap[Int, Double]
