@@ -5,7 +5,6 @@ import java.io.File
 import parser.ContentDescription
 import common.Path.filterPath
 import classifier.TargetClassDefinition
-import format.arff_json.HistoryItem
 
 object Filter {
     val serializeFilters = true
@@ -17,6 +16,4 @@ trait Filter {
     def save(outFile: File) {
         common.ObjectToFile.writeObjectToFile(this, outFile)
     }
-    
-    val historyAppendix: HistoryItem
 }

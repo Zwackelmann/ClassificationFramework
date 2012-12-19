@@ -3,24 +3,29 @@ import format.arff_json.ArffJsonInstance
 import format.arff_json.ArffJsonHeader
 import scala.collection.mutable.HashMap
 import java.io.File
-import common.Time
 import format.arff_json.SparseArffJsonInstance
 import java.io.FileReader
-import parser.ArffJsonInstancesFile
 import parser.ArffJsonInstancesSource
-import parser.ArffJsonInstancesSource
-import format.arff_json.HistoryItem
+import classifier.TargetClassDefinition
+import parser.History
 
 object TfIdfFilter {
     def apply() = new StorableFilterFactory {
-        def apply(trainBase: ArffJsonInstancesSource) = new TfIdfFilter(trainBase, this)
+        def apply(trainBase: ArffJsonInstancesSource) = new TfIdfFilter(trainBase)
         val historyAppendix = "tf-idf"
         def load(file: File) = common.ObjectToFile.readObjectFromFile(file).asInstanceOf[TfIdfFilter]
     }
+    
+    @serializable
+    trait Appendix extends History {
+        abstract override def apply(targetClassDef: TargetClassDefinition) = super.apply(targetClassDef) :+ TfIdfFilter()
+    }
 }
 
+
+
 @serializable
-class TfIdfFilter(source: ArffJsonInstancesSource, val historyAppendix: HistoryItem) extends GlobalFilter {
+class TfIdfFilter(source: ArffJsonInstancesSource) extends GlobalFilter {
     val (tf, numDocuments) = {
         val tf = new HashMap[Int, Int] {
             override def default(key: Int) = 0
@@ -39,7 +44,7 @@ class TfIdfFilter(source: ArffJsonInstancesSource, val historyAppendix: HistoryI
     
     def applyFilter(source: ArffJsonInstancesSource) = {
         source.map(
-            elemFun = elements => elements.map(inst => {
+            elemFun = ((inst: ArffJsonInstance) => {
                 val data = for((key, value) <- inst.sparseData) yield {
                     if(value == 0) key -> 0.0 
                     else {
@@ -47,10 +52,9 @@ class TfIdfFilter(source: ArffJsonInstancesSource, val historyAppendix: HistoryI
                     }
                 }
                 
-                new SparseArffJsonInstance(inst.id, inst.mscClasses, data, inst.numAttributes())
+                new SparseArffJsonInstance(inst.id, inst.categories, data, inst.numAttributes())
             }),
-            headerFun = header => header,
-            historyAppendix = historyAppendix
+            headerFun = header => header
         )
     }
 }

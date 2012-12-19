@@ -67,8 +67,8 @@ abstract class FeatureScoreing(inst: ArffJsonInstancesSource, targetClassDef: Ta
             for((key, value) <- inst.sparseData) {
                 termSet += key
             }
-            
-            if(targetClassDef(inst.mscClasses)) {
+
+            if(targetClassDef(inst.categories)) {
                 numTargetInst += 1
                 for((key, value) <- inst.sparseData) {
                     termMapTarget(key) += 1
@@ -79,7 +79,7 @@ abstract class FeatureScoreing(inst: ArffJsonInstancesSource, targetClassDef: Ta
                     termMapOther(key) += 1
                 }
             }
-        }
+        }        
         
         (numTargetInst, numOtherInst, termMapTarget.toMap, termMapOther.toMap, termSet.toSet)
     }

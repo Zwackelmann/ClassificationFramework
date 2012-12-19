@@ -36,9 +36,9 @@ object ArffJsonInstance {
     def apply(json: JSONArray, header: ArffJsonHeader): ArffJsonInstance = apply(json, header.attributes.size)
     def apply(line: String, header: ArffJsonHeader) = ArffJsonParser.parse(line, header.attributes.length)
     
-    def apply(id: String, mscClasses: List[String], data: List[Any], sparse: Boolean) = {
+    def apply(id: String, categories: List[String], data: List[Any], sparse: Boolean) = {
         if(!sparse) {
-            new DenseArffJsonInstance(id, mscClasses, data)
+            new DenseArffJsonInstance(id, categories, data)
         } else {
             val dataMap = (0 until data.size)
                 .zip(data)
@@ -47,7 +47,7 @@ object ArffJsonInstance {
                     case _ => true
                 })
                 .toMap
-            new SparseArffJsonInstance(id, mscClasses, dataMap, data.size)
+            new SparseArffJsonInstance(id, categories, dataMap, data.size)
         }
     }
     
@@ -68,7 +68,7 @@ object ArffJsonInstance {
     }
 }
 
-abstract class ArffJsonInstance(val id: String, val mscClasses: List[String]) extends Point {
+abstract class ArffJsonInstance(val id: String, val categories: List[String]) extends Point {
     def toJson: String
     def numAttributes(): Int
     def dataAt(index: Int): Any
@@ -78,7 +78,7 @@ abstract class ArffJsonInstance(val id: String, val mscClasses: List[String]) ex
         this match {
             case sp: SparseArffJsonInstance => new SparseArffJsonInstance(
                 sp.id, 
-                sp.mscClasses, 
+                sp.categories, 
                 sp.dataMap
                     .filter(m => ids.contains(m._1))
                     .map(kv => idsWithIndex(kv._1) -> kv._2),
@@ -87,7 +87,7 @@ abstract class ArffJsonInstance(val id: String, val mscClasses: List[String]) ex
             case de: DenseArffJsonInstance => 
                 new DenseArffJsonInstance(
                     de.id,
-                    de.mscClasses,
+                    de.categories,
                     de.dataList
                         .zip(0 until de.dataList.size)
                         .filter(l => ids.contains(l._2))

@@ -1,5 +1,4 @@
 package filter
-import classifier.Global
 import parser.ArffJsonInstancesSource
 import classifier.TargetClassDefinition
 

@@ -5,6 +5,25 @@ import java.io.File
 import scala.collection.mutable.ListBuffer
 import model._
 
+object SelfMadeParser {
+    def main(args: Array[String]) {
+        val p = new SelfMadeParser("data2/raw/deliver-math.txt")
+        var count = 0
+        var error = 0
+        while(p.hasNext) {
+            try {
+                val paper = p.readPaper(p.nextLines)
+                count += 1
+            } catch {
+                case _ => error += 1
+            }
+        }
+        
+        println(count)
+        println(error)
+    }
+}
+
 class SelfMadeParser(val filename: String) {
     val scanner = new Scanner(new File(filename))
     var line: String = scanner.nextLine

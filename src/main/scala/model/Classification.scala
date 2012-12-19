@@ -44,7 +44,7 @@ object RawClassification {
         w.close
     }
     
-    def normalize(classifications: List[RawClassification]) = {
+    def toBreakEven1(classifications: List[RawClassification]) = {
         val meanPositives = {
             val x = classifications.filter(c => c.realValue > 0).map(c => c.classification) 
             x.reduceLeft(_ + _) / x.size
@@ -56,39 +56,89 @@ object RawClassification {
         }
         
         if(meanPositives <= meanNegatives) {
-            throw new RuntimeException("classifications cannot be normalized properly, because the center of classifions for positive examples is lower or equal to the center of classifications for negative examples")
+            // classifications cannot be normalized properly, because the center of classifions for positive examples is lower or equal to the center of classifications for negative examples
+            None
         }
         
         var stepWidth = math.abs(meanPositives - meanNegatives) / 2
         var t = (meanPositives + meanNegatives) / 2
-        def f(p: Double, r: Double) = p*0.5 + r*0.5
-        var max: Pair[Double, Double] = null
+        var opt: Pair[Double, Double] = null
         
-        for(i <- 0 until 20) {
-            val p = Classifier.precision(classifications.view.map(c => new RawClassification(c.id, c.classification + t, c.realValue)), 0)
-            val r = Classifier.recall(classifications.view.map(c => new RawClassification(c.id, c.classification + t, c.realValue)), 0)
+        for(i <- 0 until 100) {
+            val p = Classifier.precision(classifications.view.map(c => new RawClassification(c.id, c.classification - t, c.realValue)), 0)
+            val r = Classifier.recall(classifications.view.map(c => new RawClassification(c.id, c.classification - t, c.realValue)), 0)
             
             // set new max if f-measure is better
-            if(max == null || max._2 < f(p, r)) {
-                max = (t, f(p, r))
+            if(!math.abs(p-r).isNaN() && (opt == null || opt._2 > math.abs(p-r))) {
+                opt = (t, math.abs(p-r))
             }
             
-            if(p > r) {
+            if(p > r || p.isNaN()) {
                 t = t - stepWidth
             } else {
                 t = t + stepWidth
             }
             
-            stepWidth = stepWidth / 2
+            stepWidth = stepWidth / 1.5
         }
         
-        t = max._1
+        t = opt._1
         
-        val meanDiffToThreshold = classifications.map(c => math.abs(c.classification - t)).reduceLeft(_ + _) / classifications.size
+        Some(classifications.map(c => {
+            new RawClassification(c.id, (c.classification - t), c.realValue)
+        }))
+    }
+    
+    def toBreakEven2(classifications: List[RawClassification], alpha: Double) = {
+        val sortedClassifications = classifications.sortWith((c1, c2) => c1.classification > c2.classification)
+        
+        var truePositives = 0
+        var falsePositives = 0
+        var trueNegatives = sortedClassifications.count(c => c.realValue < 0)
+        var falseNegatives = sortedClassifications.count(c => c.realValue >= 0)
+        
+        def prec(truePos: Int, falsePos: Int, trueNeg: Int, falseNeg: Int) = truePos.toDouble / (truePos + falsePos)
+        def rec(truePos: Int, falsePos: Int, trueNeg: Int, falseNeg: Int) = truePos.toDouble / (truePos + falseNeg)
+        def fmeasure(prec: Double, rec: Double, alpha: Double) = ((1 + alpha) * prec * rec) / ((alpha * prec) + rec) 
+        
+        val bestn = sortedClassifications.flatMap(cl => {
+            if(cl.realValue >= 0) {
+                truePositives += 1
+                falseNegatives -= 1
+            } else {
+                falsePositives += 1
+                trueNegatives -= 1
+            }
+            
+            val p = prec(truePositives, falsePositives, trueNegatives, falseNegatives)
+            val r = rec(truePositives, falsePositives, trueNegatives, falseNegatives)
+            val f = fmeasure(p, r, alpha)
+            
+            if(p.isNaN() || r.isNaN() || f.isNaN()) List()
+            else List(Tuple4(cl.classification, p, r, f))
+        })
+        
+        val best = bestn.maxBy(_._4)
         
         classifications.map(c => {
-            new RawClassification(c.id, (c.classification - t) / meanDiffToThreshold, c.realValue)
+            new RawClassification(c.id, (c.classification - best._1), c.realValue)
         })
+    }
+    
+    def toBreakEven(classificatinos: List[RawClassification], alpha: Double = 1.0) = {
+        val br1 = toBreakEven1(classificatinos)
+        val br2 = toBreakEven2(classificatinos, alpha)
+        
+        val f1 = if(br1 == None) 0.0 else Classifier.fMeasure(br1.get, alpha)
+        val f2 = Classifier.fMeasure(br2, alpha)
+        
+        if((f2.isNaN() || f1 > f2) && br1.isDefined) br1.get
+        else br2
+    }
+    
+    def normalize(classifications: Iterable[RawClassification]) = {
+        val avgAbsClassification = classifications.map(c => math.abs(c.classification)).reduceLeft(_ + _) / classifications.size
+        classifications.map(c => new RawClassification(c.id, c.classification / avgAbsClassification, c.realValue))
     }
     
     def adaBoost(pool: List[Iterable[RawClassification]]) = {
@@ -137,15 +187,60 @@ object RawClassification {
                 classificationList(0).realValue)
         })
     }
+    
+    def weightedSum(pool: List[Iterable[RawClassification]]) = {
+        val resultsAndWeights = pool.map(
+            res => {
+                val results = normalize(res)
+                val weight = {
+                    val m = Classifier.fMeasure(res, 1.0)
+                    if(m.isNaN()) 0 else m
+                }
+                (results, weight) 
+            }
+        )
+        
+        val results = resultsAndWeights.map(_._1)
+        val weights = resultsAndWeights.map(_._2)
+        val normedWeights = weights.map(w => w / weights.reduceLeft(_ + _))
+        
+        val finalRes = results.transpose.map(classificationList => {
+            require(classificationList.forall(c => c.id == classificationList(0).id))
+            new RawClassification(
+                classificationList(0).id, 
+                ((0.0 /: (classificationList zip normedWeights))(
+                    (old, clw) => old + clw._1.classification * clw._2
+                )),
+                classificationList(0).realValue)
+        })
+        
+        finalRes
+    }
+    
+    def weightedSumWithCoofficients(pool: List[Iterable[RawClassification]], coofficients: List[Double]) = {
+        val normedWeights = coofficients.map(w => w / coofficients.reduceLeft(_ + _))
+        
+        val finalRes = pool.transpose.map(classificationList => {
+            require(classificationList.forall(c => c.id == classificationList(0).id))
+            new RawClassification(
+                classificationList(0).id, 
+                ((0.0 /: (classificationList zip normedWeights))(
+                    (old, clw) => old + clw._1.classification * clw._2
+                )),
+                classificationList(0).realValue)
+        })
+        
+        finalRes
+    }
 }
 
 class RawClassification(val id: String, val classification: Double, val realValue: Double) {
     import RawClassification._
     
-    def truePositive = classification > 0 && realValue > 0
-    def falsePositive = classification > 0 && realValue <= 0
-    def trueNegative = classification <= 0 && realValue <= 0
-    def falseNegative = classification <= 0 && realValue > 0
+    def truePositive = classification >= 0 && realValue >= 0
+    def falsePositive = classification >= 0 && realValue < 0
+    def trueNegative = classification < 0 && realValue < 0
+    def falseNegative = classification < 0 && realValue >= 0
     
     def hit = truePositive || trueNegative
     def miss = falsePositive || falseNegative

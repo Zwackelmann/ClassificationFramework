@@ -1,6 +1,5 @@
 package script
 import filter.VectorFromDictFilter
-import parser.ArffJsonInstancesFile
 import java.io.File
 import filter.feature_scoreing.FeatureScoreing
 import filter.feature_scoreing.OddsRatio
@@ -15,12 +14,11 @@ import parser.ArffJsonInstancesSource
 import format.arff_json.ArffJsonInstance
 import scala.collection.mutable
 import parser.ContentDescription
-import parser.ArffJsonInstancesFile2
 import scala.collection.mutable
 
 object DistanceBetweeenCentroids {
     def main(args: Array[String]) {
-        val inst = new ArffJsonInstancesFile2(
+        val inst = ArffJsonInstancesSource(
             new File("data/arffJson/final-test_projection-abstract_vector-from-dict-conf4_tf-idf_lsi-500.json"), 
             ContentDescription("final", ContentDescription.TestSet, List())
         )
@@ -38,7 +36,7 @@ object DistanceBetweeenCentroids {
         }
         
         for(i <- inst) {
-            for(group <- i.mscClasses.map(_.substring(0, 2)).distinct) {
+            for(group <- i.categories.map(_.substring(0, 2)).distinct) {
                 val mapItem = map(group)
                 map(group) = Pair(merge(mapItem._1, i.sparseData, (a, b) => a + b), mapItem._2 + 1)
             }

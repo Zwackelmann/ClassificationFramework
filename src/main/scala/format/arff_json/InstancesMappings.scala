@@ -12,27 +12,27 @@ import filter.NominalValueFromDictFilter
 import classifier.TargetClassDefinition
 import filter.feature_scoreing.OddsRatio
 import filter.OddsRatioFilter
-import filter.FlattenFilter
-import filter.NominalizeFilter
 import parser.ArffJsonInstancesSource
 import parser.ContentDescription
-import parser.ArffJsonInstancesFile
 import filter.FilterFactory
 import filter.StorableFilterFactory
 import classifier.Learner
+import parser.ContentDescribable
 
 object InstancesMappings {
-    def apply(base: ArffJsonInstancesSource, target: ContentDescription, targetClassDef: TargetClassDefinition, learner: Learner): ArffJsonInstancesSource = {
+    def apply(base: ArffJsonInstancesSource with ContentDescribable, target: ContentDescription, targetClassDef: TargetClassDefinition, learner: Learner): ArffJsonInstancesSource with ContentDescribable = {
         if(base.contentDescription == target) {
             base
         } else {
-            val instances = learner.deliverInstances(target)
+            val instances = if(target.file.exists) Some(ArffJsonInstancesSource(target))
+                else None
+                
             if(instances.isDefined) {
                 instances.get
             } else if(base.contentDescription.set != target.set) {
-                def findFirstExistingFileInNewSet(formatHistory: List[HistoryItem]): ArffJsonInstancesSource = {
-                    val testContentDescription = target.withHistory(formatHistory) 
-                    if(testContentDescription.file.exists) new ArffJsonInstancesFile(testContentDescription)
+                def findFirstExistingFileInNewSet(formatHistory: List[FilterFactory]): ArffJsonInstancesSource with ContentDescribable = {
+                    val testContentDescription = target.withFilterFactories(formatHistory) 
+                    if(testContentDescription.file.exists) ArffJsonInstancesSource(testContentDescription)
                     else if(formatHistory.size > 0) findFirstExistingFileInNewSet(formatHistory.dropRight(1))
                     else throw new RuntimeException("No appropriate file found to jump between sets " + base.contentDescription.set + " and " + target.set)
                 }
@@ -61,7 +61,8 @@ object InstancesMappings {
                             println("load: " + filterFile)
                             storable.load(filterFile)
                         } else {
-                            val trainBase = apply(base, target.toTrain.dropLastHistoryItem, targetClassDef, learner)
+                            val trainBase = apply(base, target.toTrain.dropLastFilterFactory, targetClassDef, learner)
+                            println("mappings - trainBaseSize: " + trainBase.size)
                             println("train " + storable.historyAppendix + " filter with " + trainBase.contentDescription)
                             val filter = storable(trainBase)
                             filter.save(filterFile)
@@ -69,21 +70,27 @@ object InstancesMappings {
                         }
                     }
                     case filterFactory: FilterFactory => {
-                        filterFactory(apply(base, target.toTrain.dropLastHistoryItem, targetClassDef, learner))
+                        filterFactory(apply(base, target.toTrain.dropLastFilterFactory, targetClassDef, learner))
                     }
                     case _ => throw new RuntimeException("HistoryItem must be a FilterFactory to use mappings")
                 }
                 
-                val underlyingInstances = apply(base, target.dropLastHistoryItem, targetClassDef, learner)
-                println("apply " + currentFilterFactory.historyAppendix + " filter on " + target.dropLastHistoryItem)
+                val underlyingInstances = apply(base, target.dropLastFilterFactory, targetClassDef, learner)
+                println("apply " + currentFilterFactory.historyAppendix + " filter on " + target.dropLastFilterFactory)
                 val mappedInstances = _filter.applyFilter(underlyingInstances, targetClassDef)
-
-                if(ArffJsonInstances.serializeInstances && !mappedInstances.file.exists()) {
-                    print("save " + mappedInstances.contentDescription + "...")
-                    mappedInstances.save()
+                
+                val contentDescribableMappedInstances = new ArffJsonInstancesSource() with ContentDescribable {
+                    override def iterator = mappedInstances.iterator
+                    def header = mappedInstances.header
+                    val contentDescription = underlyingInstances.contentDescription.addFilterFactory(currentFilterFactory)
+                }
+                
+                if(ArffJsonInstances.serializeInstances && !contentDescribableMappedInstances.file.exists()) {
+                    print("save " + contentDescribableMappedInstances.contentDescription + "...")
+                    contentDescribableMappedInstances.save()
                     println("done")
                 }
-                mappedInstances
+                contentDescribableMappedInstances
             }
         }
     }

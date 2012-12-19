@@ -1,7 +1,8 @@
 package filter
 import parser.ArffJsonInstancesSource
-import format.arff_json.HistoryItem
 
-trait FilterFactory extends HistoryItem {
+@serializable
+trait FilterFactory {
     def apply(trainBase: ArffJsonInstancesSource): Filter
+    val historyAppendix: String
 }

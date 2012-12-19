@@ -9,10 +9,7 @@ import classifier.WekaClassifier
 import model.RawClassification
 import weka.classifiers.bayes.NaiveBayes
 import weka.classifiers.trees.J48
-import parser.ArffJsonInstancesFile
 import classifier.TopClassIs
-import filter.NominalizeFilter
-import filter.FlattenFilter
 import filter.ProjectionFilter
 import filter.VectorFromDictFilter
 import java.io.File
@@ -20,12 +17,10 @@ import filter.TfIdfFilter
 import filter.NormalizeVectorFilter
 import external.GensimLsiFilter
 import filter.OddsRatioFilter
+import filter.OddsRatioFilter2
 import format.arff_json.InstancesMappings
 import parser.ContentDescription
 import classifier.TrainSetSelection
-import format.arff_json.HistoryItem
-import classifier.FinalLearner
-import classifier.FinalLearner2
 import weka.classifiers.meta.AdaBoostM1
 import format.arff_json.ArffJsonInstance
 import filter.VectorFromNGramTreeFilter
@@ -34,309 +29,80 @@ import format.arff_json.ArffJsonHeader
 import format.arff_json.SparseArffJsonInstance
 import format.arff_json.DenseArffJsonInstance
 import filter.ScalingOddsRatioFilter
+import filter.MostFrequentTermsFilter
+import filter.FilterFactory
+import parser.History
+import classifier.TrainSetSelectionDefinition
+import classifier.TrainSetSelectionDefinition
+import classifier.BalancedTrainSetSelection
+import classifier.NoTrainSetSelection
+import parser.ContentDescribable
+import classifier.TopAndMiddleClassIs
+import classifier.FixedTrainSetSelection
 
 object ApplyFinalClassifier {
     def main(args: Array[String]) {
-        val testSet = new ArffJsonInstancesFile("exp", ContentDescription.TestSet, List())
-        val trainSet = new ArffJsonInstancesFile("exp", ContentDescription.TrainSet, List())
+        // waehle ein Test- und TrainingSet
+        val testSet = ArffJsonInstancesSource("exp", ContentDescription.TestSet, List())
+        val trainSet = ArffJsonInstancesSource("exp", ContentDescription.TrainSet, List())
+
+        // die stdTopClasses sind die Topklassen auf die ich meine Experimente ausgefuehrt habe
+        val stdTopClasses = List(TopClassIs("00"), TopClassIs("01"), TopClassIs("08")/*NAN*/, TopClassIs("12")/*NAN*/, TopClassIs("13"), TopClassIs("15"), TopClassIs("19")/*NAN*/, TopClassIs("22")/*NAN*/, TopClassIs("35"), TopClassIs("91"))
+        // allTopClasses sind alle Topklassen...
+        val allTopClasses = common.Common.topClasses.map(c => TopClassIs(c))
         
-        //val finalLearner = new FinalLearner2(List(
-            // lsi + svm
-            /*SvmLearner(
-                new AbstractOnlyLsiHistory(500, "conf5", true, false),
-                Pair(None, None)
-            )*//*, 
-            SvmLearner(
-                new TitleOnlyLsiHistory(250, "conf6", true, false),
-                Pair(Some(1000), Some(200))
-            )*//*, 
-            // or + svm
-            SvmLearner(
-                new AbstractOnlyOrHistory(1.0),
-                Pair(Some(1000), Some(200))
-            ), 
-            SvmLearner(
-                new TitleOnlyOrHistory(1.0),
-                Pair(Some(1000), Some(200))
-            ),*/
-            // or + boosted c45
-            /*val boostedC45Learner = BoostedC45Learner(
-                new AbstractOnlyOrHistory(1.0, 2000, "conf6"),
-                Pair(Some(1000), Some(200)),
-                10
-            )*//*, 
-            BoostedC45Learner(
-                new TitleOnlyOrHistory(1.0),
-                Pair(Some(1000), Some(200)), 
-                30
-            ),
-            BoostedC45Learner(
-                new JournalOnlyOrHistory(1.0),
-                Pair(Some(1000), Some(200)),
-                30
-            ),
-            BoostedC45Learner(
-                new TermsOnlyOrHistory(1.0),
-                Pair(Some(1000), Some(200)),
-                30
-            )*/
-        //))
-        
-        /*val source = ArffJsonInstancesSource(
-            List(
-                new DenseArffJsonInstance("", List(), List("my stuff has lots of commutative Noetherian local Rings. And also many finite many associated prime. we also analyzed the usual local cohomology functor and the usual local cohomology functor again.")),
-                new DenseArffJsonInstance("", List(), List("neumann total quotient ring weak finite conductor rings are cool. complete regular local ring is awesome and i also like finite generated graded algebra very much. blah two finite generated module la la la la "))
-            ),
-            new ArffJsonHeader("", List(), List()),
-            ContentDescription("", ContentDescription.TrainSet, List())
-        )*/
-        
-        /*val ngramfilter = new VectorFromNGramTreeFilter.Conf1(
-            new File("data/ngrams/13-XX").lines.map(line => line.split("\\s+").toList),
-            HistoryItem("ng-13")
+        // hier wird ein Lerner definiert, der Klassifikatoren fuer beliebige Kategorien erstellen kann
+        val learner = BoostedC45Learner( // erstelle einen C4.5 Learner mit AdaBoost
+            new History() // erstelle eine neue History, die von allen Dokumenten des Learners eingehalten werden soll 
+                    with AbstractProjection // Alle Dokumente sollen auf Abstracts projiziert werden
+                    with VectorFromDictFilter.Appendix // Alle Dokumente sollen in den Vektorraum ueberfuehrt werden
+                    with NormalizeVectorFilter.Appendix // Die Dokumente sollen normalisiert werden
+                    with OddsRatioFilter.Appendix { // Und mithilfe der OddsRatio auf fuer die Kategorie sinnvoll Attribute projiziert werden 
+                // Hier steht genaueres zur Konfiguration der History
+                val confName = "conf9"
+                override val minOcc = 3
+                val orThreshold = 5.0
+                val numWorst = 0
+            },
+            FixedTrainSetSelection(Some(1000), Some(200)), // Aus dem gesamten Trainingsset werden aus Peformancegruenden nur 1000 Dokumente aus der Zielkategorie gewaehlt und je 200 aus jeder Nicht-Zielkategorie
+            30 // Es werden 30 AdaBoost-Iterationen ausgefuehrt
         )
         
-        val mappedInst = trainset
-             .applyFilter(new ProjectionFilter(List(1), HistoryItem("proj-abs")))
-             .applyFilter(ngramfilter)
-        
-        println(mappedInst.take(1000).mkString("\n"))*/ 
+        // ab hier werden fuer alle Klassen nacheinander die Klassifikationen berechnet
+        for(targetClass <- allTopClasses) {
+            val classifications = learner.classifications(testSet, targetClass) // berechne die Klassifikationen fuer das gegebene TestSet fuer die gegebene Zielklasse
+            val toBreakEvenClassifications = RawClassification.toBreakEven(classifications) // verschiebe den Schwellwert der Klassifikationen, sodass Precision und Recall etwa gleich gross sind
             
-        /*val ngramclassifier = BoostedC45Learner(
-            new NGramHistory(new File("data/ngrams/13-XX"), Pair(1, "abs")),
-            Pair(Some(1000), Some(200)),
-            1
-        )*/
-        
-        // ngramclassifier.classifications(testset, TopClassIs("13"))
-        
-        def performance(results: Seq[RawClassification]) = {
-            val prec = Classifier.precision(results, 0)
-            val rec = Classifier.recall(results, 0)
-            val f = Classifier.fMeasure(results, 1.0, 0)
-            
-            def format(number: Double) = "%.4f".format(number).toString.replaceAllLiterally(",", ".")
-            
-            "(" + format(prec) + ", " + format(rec) + ", " + format(f) + ")"
+            println("topClass: %s, results: %s".format(targetClass.toString, performance(toBreakEvenClassifications).toString)) // gebe die Ergebnisse auf der Konsole aus
         }
+    }
+    
+    // eine kleine convinience funktion zur ausgabe der performance eines Classifiers...
+    def performance(results: Seq[RawClassification], alpha: Double = 1.0) = {
+        val prec = Classifier.precision(results, 0)
+        val rec = Classifier.recall(results, 0)
+        val f = Classifier.fMeasure(results, alpha, 0)
         
+        def format(number: Double) = "%.4f".format(number).toString.replaceAllLiterally(",", ".")
         
-        /*println("local1")
-        for(targetClass <- List(TopClassIs("15"), TopClassIs("35"))) {
-            println("\n\ntopClass = " + targetClass)
-            val svmLearner = SvmLearner(
-                new AbstractOnlyLsiHistory(500, true, true, true),
-                Pair(None, None)
-            )
-            
-            val results = svmLearner.classifications(testSet, targetClass)
-            
-            println("\n\n\n")
-            println("results minus: true, topClass = " + targetClass + ": " + performance(results))
-            
-            val svmLearner2 = SvmLearner(
-                new AbstractOnlyLsiHistory(500, false, true, true),
-                Pair(None, None)
-            )
-            
-            val results2 = svmLearner2.classifications(testSet, targetClass)
-            
-            println("\n\n\n")
-            println("results minus: false, topClass = " + targetClass + ": " + performance(results2))
-        }*/
-        
-        
-        /*println("tbdb1")
-        for(targetClass <- List(TopClassIs("00"), TopClassIs("01"), TopClassIs("13"), TopClassIs("15"), TopClassIs("35"))) {
-            println("\n\ntopClass = " + targetClass)
-            val sorC45Learner = C45Learner(
-                new AbstractOnlyScalingOrHistory(1.0, 1000, 1.0, false),
-                Pair(Some(1000), Some(200))
-            )
-            
-            val results = sorC45Learner.classifications(testSet, targetClass)
-            
-            println("\n\n")
-            println("topClass = " + targetClass + ": " + performance(results))
-            println("\n\n")
-        }*/
-        
-        /*println("local2")
-        for(targetClass <- List(TopClassIs("00"), TopClassIs("01"), TopClassIs("15"), TopClassIs("35"))) {
-            println("\n\ntopClass = " + targetClass)
-            val svmLearner = SvmLearner(
-                new AbstractOnlyLsiHistory(500, "conf7", true, true),
-                Pair(None, None)
-            )
-            
-            val results = svmLearner.classifications(testSet, targetClass)
-            
-            println("\n\n\n")
-            println("results conf7, topClass = " + targetClass + ": " + performance(results))
-            
-            val svmLearner2 = SvmLearner(
-                new AbstractOnlyLsiHistory(500, "conf8", true, true),
-                Pair(None, None)
-            )
-            
-            val results2 = svmLearner2.classifications(testSet, targetClass)
-            
-            println("\n\n\n")
-            println("results conf8, topClass = " + targetClass + ": " + performance(results2))
-        }*/
-        
-        /*println("local3")
-        for(targetClass <- common.Common.topClasses.map(TopClassIs(_))) {
-            println("\n\ntopClass = " + targetClass)
-            val svmLearner = SvmLearner(
-                new AbstractOnlyLsiHistory(500, "conf7", true, true),
-                Pair(None, None)
-            )
-            
-            val results = svmLearner.classifications(testSet, targetClass)
-            
-            println("\n\n\n")
-            println("results conf7, topClass = " + targetClass + ": " + performance(results))
-            
-            val svmLearner2 = SvmLearner(
-                new AbstractOnlyLsiHistory(500, "conf8", true, true),
-                Pair(None, None)
-            )
-            
-            val results2 = svmLearner2.classifications(testSet, targetClass)
-            
-            println("\n\n\n")
-            println("results conf8, topClass = " + targetClass + ": " + performance(results2))
-        }*/
-        
-        /*println("tbdb2")
-        for(targetClass <- List(TopClassIs("00"), TopClassIs("01"), TopClassIs("13"), TopClassIs("15"), TopClassIs("35"), TopClassIs("91"))) {
-            println("\n\ntopClass = " + targetClass)
-            val sorC45Learner = C45Learner(
-                new AbstractOnlyScalingOrHistory(1.0, 1000, 1.0, true),
-                Pair(Some(1000), Some(200))
-            )
-            
-            val results = sorC45Learner.classifications(testSet, targetClass)
-            
-            println("\n\n")
-            println("topClass = " + targetClass + ": " + performance(results))
-            println("\n\n")
-        }*/
-        
-        /*println("tbdb3")
-        for(targetClass <- List(TopClassIs("00"), TopClassIs("01"), TopClassIs("13"), TopClassIs("15"), TopClassIs("35"), TopClassIs("91"))) {
-            println("\n\ntopClass = " + targetClass)
-            val sorC45Learner = C45Learner(
-                new AbstractOnlyOrHistory(1.0, 1000, true),
-                Pair(Some(1000), Some(200))
-            )
-            
-            val results = sorC45Learner.classifications(testSet, targetClass)
-            
-            println("\n\n")
-            println("topClass = " + targetClass + ": " + performance(results))
-            println("\n\n")
-        }*/
-        
-        println("tbdb4")
-        for(targetClass <- List(TopClassIs("00"), TopClassIs("01"), TopClassIs("08"), TopClassIs("13"), TopClassIs("15"), TopClassIs("35"), TopClassIs("91"))) {
-            println("\n\ntopClass = " + targetClass)
-            val sorC45Learner = C45Learner(
-                new AbstractOnlyScalingOrHistory(1.0, 1000, 1.0, false),
-                Pair(Some(1000), Some(200))
-            )
-            
-            val results = sorC45Learner.classifications(testSet, targetClass)
-            
-            println("\n\n")
-            println("topClass = " + targetClass + ": " + performance(results))
-            println("\n\n")
-        }
-        
-        /*for(minCount <- List(3, 5, 10, 15, 25, 50, 100); targetClass <- List(TopClassIs("01"), TopClassIs("15"), TopClassIs("35"))) {
-            println("\n\nstarted minCount = " + minCount + ", topClass = " + targetClass)
-            val svmLearner = SvmLearner(
-                //new AbstractOnlyLsiHistory(500, "conf6", minCount, true, true),
-                new AbstractOnlyScalingOrHistory(1.0, 0, minCount),
-                Pair(None, None)
-            )
-            
-            val results = svmLearner.classifications(testSet, targetClass)
-            
-            println("\n\n\n")
-            println("results for minCount = " + minCount + ", topClass = " + targetClass + ": " + performance(results))
-        }*/
+        "(" + format(prec) + ", " + format(rec) + ", " + format(f) + ")"
     }
 }
 
-
-class TitleOnlyLsiHistory(numLsiDims: Int, confName: String, tfIdf: Boolean = true, normalize: Boolean = false) extends LsiHistory((0, "tit"), numLsiDims, confName, tfIdf, normalize)
-class AbstractOnlyLsiHistory(numLsiDims: Int, confName: String, tfIdf: Boolean = true, normalize: Boolean = false) extends LsiHistory((1, "abs"), numLsiDims, confName, tfIdf, normalize)
-@serializable
-class LsiHistory(val projection: Pair[Int, String], val numLsiDims: Int, val confName: String, val tfIdf: Boolean = true, val normalize: Boolean = false) extends (TargetClassDefinition => List[HistoryItem]) {
-    def apply(targetClassDef: TargetClassDefinition) = List(
-        List(ProjectionFilter(List(projection._1), projection._2)), 
-        List(VectorFromDictFilter(confName)), 
-        if(tfIdf) List(TfIdfFilter()) else List(), 
-        if(normalize) List(NormalizeVectorFilter()) else List(),
-        List(GensimLsiFilter(numLsiDims))
-    ).flatten
-}
-
-class TitleOnlyOrHistory(orThreshold: Double, numWorst: Int, minus: Boolean, normalize: Boolean = false) extends OrHistory((0, "tit"), orThreshold, numWorst, minus, normalize)
-class AbstractOnlyOrHistory(orThreshold: Double, numWorst: Int, minus: Boolean, normalize: Boolean = false) extends OrHistory((1, "abs"), orThreshold, numWorst, minus, normalize)
-class JournalOnlyOrHistory(orThreshold: Double, numWorst: Int, minus: Boolean, normalize: Boolean = false) extends OrHistory((2, "jour"), orThreshold, numWorst, minus, normalize)
-class TermsOnlyOrHistory(orThreshold: Double, numWorst: Int, minus: Boolean, normalize: Boolean = false) extends OrHistory((3, "ter"), orThreshold, numWorst, minus, normalize)
-@serializable
-class OrHistory(val projection: Pair[Int, String], val orThreshold: Double, numWorst: Int, val minus: Boolean, val normalize: Boolean = false) extends (TargetClassDefinition => List[HistoryItem]) {
-    def apply(targetClassDef: TargetClassDefinition) = List(
-        List(ProjectionFilter(List(projection._1), projection._2)), 
-        List(VectorFromDictFilter.conf6Minus(minus)), 
-        if(normalize) List(NormalizeVectorFilter()) else List(),
-        List(OddsRatioFilter(targetClassDef, orThreshold, numWorst))
-    ).flatten
-}
-
-class AbstractOnlyScalingOrHistory(orThreshold: Double, numWorst: Int, shift: Double, normalize: Boolean = false) extends ScalingOrHistory((1, "abs"), orThreshold, numWorst, shift, normalize)
-@serializable
-class ScalingOrHistory(val projection: Pair[Int, String], val orThreshold: Double, numWorst: Int, shift: Double, val normalize: Boolean = false) extends (TargetClassDefinition => List[HistoryItem]) {
-    def apply(targetClassDef: TargetClassDefinition) = List(
-        List(ProjectionFilter(List(projection._1), projection._2)), 
-        List(VectorFromDictFilter("conf8")), 
-        List(ScalingOddsRatioFilter(targetClassDef, orThreshold, numWorst, shift)),
-        if(normalize) List(NormalizeVectorFilter()) else List()
-    ).flatten
-}
-
-class NGramHistory(file: File, projection: Pair[Int, String]) extends (TargetClassDefinition => List[HistoryItem]) {
-    def apply(targetClassDef: TargetClassDefinition) = List(
-        List(ProjectionFilter(List(projection._1), projection._2)), 
-        List(VectorFromNGramTreeFilter("conf1", file))
-    ).flatten
-}
-
-class JournalOnlyFlattenedHistory(vectorConf: String = "conf1") extends FlattenedHistory((2, "jour"), vectorConf)
-class KeywordOnlyFlattenedHistory(vectorConf: String = "conf1") extends FlattenedHistory((3, "kw"), vectorConf)
-@serializable
-class FlattenedHistory(val projection: Pair[Int, String], val vectorConf: String = "conf1") extends (TargetClassDefinition => List[HistoryItem]) {
-    def apply(targetClassDef: TargetClassDefinition) = List(
-        ProjectionFilter(List(projection._1), projection._2), 
-        NominalizeFilter(vectorConf), 
-        FlattenFilter()
-    )
-}
-
+@serializable trait TitleProjection extends ProjectionFilter.Appendix { val projection = (0, "tit") }
+@serializable trait AbstractProjection extends ProjectionFilter.Appendix { val projection = (1, "abs") }
+@serializable trait JournalProjection extends ProjectionFilter.Appendix { val projection = (2, "jour") }
+@serializable trait TermsProjection extends ProjectionFilter.Appendix { val projection = (3, "ter") }
 
 object SvmLearner {
-    def apply(history: TargetClassDefinition => List[HistoryItem], trainSetSelection: Pair[Option[Int], Option[Int]]) = new Learner with TrainSetSelection {
-        val numTargetInst = trainSetSelection._1
-        val numOtherInst = trainSetSelection._2
+    def apply(_history: TargetClassDefinition => List[FilterFactory], trainSetSelection: TrainSetSelectionDefinition) = new Learner with TrainSetSelection {
+        val trainSetSelectionDef: TrainSetSelectionDefinition = trainSetSelection
+        
+        @transient val history = _history
         
         def fileAppendix = 
-            "svm_tss-" + 
-            (trainSetSelection._1 match {case Some(v) => v.toString case None => "all"}) + "-" + 
-            (trainSetSelection._2 match {case Some(v) => v.toString case None => "all"})
+            "svm_" + 
+            trainSetSelectionDef.filenameAppendix
         
         def targetHistory(targetClassDef: TargetClassDefinition) = history(targetClassDef)
         
@@ -352,14 +118,12 @@ object SvmLearner {
 }
 
 object BoostedC45Learner {
-    def apply(history: TargetClassDefinition => List[HistoryItem], trainSetSelection: Pair[Option[Int], Option[Int]], numIterations: Int) = new Learner with TrainSetSelection {
-        val numTargetInst = trainSetSelection._1
-        val numOtherInst = trainSetSelection._2
+    def apply(history: TargetClassDefinition => List[FilterFactory], trainSetSelection: TrainSetSelectionDefinition, numIterations: Int) = new Learner with TrainSetSelection {
+        val trainSetSelectionDef: TrainSetSelectionDefinition = trainSetSelection
         
         def fileAppendix = 
-            "c45-boost-" + numIterations + "-tss-" + 
-            (trainSetSelection._1 match {case Some(v) => v.toString case None => "all"}) + "-" + 
-            (trainSetSelection._2 match {case Some(v) => v.toString case None => "all"})
+            "c45-boost-" + numIterations + "_" + 
+            trainSetSelectionDef.filenameAppendix
             
         def targetHistory(targetClassDef: TargetClassDefinition) = history(targetClassDef)
         
@@ -381,14 +145,12 @@ object BoostedC45Learner {
 }
 
 object C45Learner {
-    def apply(history: TargetClassDefinition => List[HistoryItem], trainSetSelection: Pair[Option[Int], Option[Int]]) = new Learner with TrainSetSelection {
-        val numTargetInst = trainSetSelection._1
-        val numOtherInst = trainSetSelection._2
+    def apply(history: TargetClassDefinition => List[FilterFactory], trainSetSelection: TrainSetSelectionDefinition) = new Learner with TrainSetSelection {
+        val trainSetSelectionDef: TrainSetSelectionDefinition = trainSetSelection
         
          def fileAppendix = 
-            "c45_tss-" + 
-            (trainSetSelection._1 match {case Some(v) => v.toString case None => "all"}) + "-" + 
-            (trainSetSelection._2 match {case Some(v) => v.toString case None => "all"})
+            "c45_" + 
+            trainSetSelectionDef.filenameAppendix
             
         def targetHistory(targetClassDef: TargetClassDefinition) = history(targetClassDef)
         
@@ -404,50 +166,54 @@ object C45Learner {
     }
 }
 
-object FlatteningBayesLearner {
-    def apply(history: TargetClassDefinition => List[HistoryItem]) = new Learner {
-        def fileAppendix = "flat-bay"
+object NaiveBayesLearner {
+    def apply(history: TargetClassDefinition => List[FilterFactory], trainSetSelection: TrainSetSelectionDefinition) = new Learner with TrainSetSelection {
+        val trainSetSelectionDef: TrainSetSelectionDefinition = trainSetSelection
+        
+        def fileAppendix = 
+            "bay_" + 
+            trainSetSelectionDef.filenameAppendix
+            
         def targetHistory(targetClassDef: TargetClassDefinition) = history(targetClassDef)
         
-        def trainClassifier(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition) = new WekaClassifier(
+        def trainClassifier(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition): Classifier = new WekaClassifier(
             inst, 
             targetClassDef, 
             this
         ) {
             def classifierConfig() = new NaiveBayes()
-            
-            def aggregateClassifications(fun: (List[Double]) => Double)(groupedClassifications: Map[String, List[RawClassification]]) = {
-                groupedClassifications.values.toList.map(cl => new RawClassification(
-                    cl(0).id, 
-                    fun(cl.map(_.classification)),
-                    cl(0).realValue
-                ))
-            }
-            
-            val aggregatedByMax = aggregateClassifications((l: List[Double]) => l.reduceLeft((a, b) => math.max(a, b))) _
-            val aggregatedByAvg = aggregateClassifications((l: List[Double]) => l.reduceLeft((a, b) => a + b) / l.size) _
-            
-            override def calculateClassifications(inst: ArffJsonInstancesSource) = {
-                val calculated = aggregatedByMax(
-                    super.calculateClassifications(inst)
-                        .toList
-                        .groupBy(c => c.id)
-                )
-                
-                val baseSource = new ArffJsonInstancesFile(inst.contentDescription.withHistory(List()))
-                val allIdsWithClass = baseSource.map(i => (i.id, targetClassDef(i.mscClasses)))
-                
-                val calculatedIds = calculated.map(_.id)
-                val missingIdsWithClass = allIdsWithClass.toList.filter(idClass => !calculatedIds.contains(idClass._1))
-                val missingClassifications = missingIdsWithClass.map(idClass => new RawClassification(idClass._1, 0.0, if(idClass._2) 1.0 else -1.0))
-                calculated ++ missingClassifications
-            }
         }
         
         def loadClassifier(file: File) = WekaClassifier.load(file)
     }
 }
 
+object BoostedNaiveBayesLearner {
+    def apply(history: TargetClassDefinition => List[FilterFactory], trainSetSelection: TrainSetSelectionDefinition, numIterations: Int) = new Learner with TrainSetSelection {
+        val trainSetSelectionDef: TrainSetSelectionDefinition = trainSetSelection
+        
+        def fileAppendix = 
+            "bay-boost-" + numIterations + "_" + 
+            trainSetSelectionDef.filenameAppendix
+            
+        def targetHistory(targetClassDef: TargetClassDefinition) = history(targetClassDef)
+        
+        def trainClassifier(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition): Classifier = new WekaClassifier(
+            inst, 
+            targetClassDef, 
+            this
+        ) {
+            def classifierConfig() = {
+                val ada = new AdaBoostM1()
+                ada.setClassifier(new NaiveBayes)
+                ada.setNumIterations(numIterations)
+                ada
+            }
+        }
+        
+        def loadClassifier(file: File) = WekaClassifier.load(file)
+    }
+}
 
 
 

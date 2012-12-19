@@ -2,11 +2,9 @@ package script
 import java.io.File
 import common.Common.FileConversion._
 import filter.feature_scoreing.OddsRatio
-import parser.ArffJsonInstancesFile
 import java.io.BufferedWriter
 import java.io.FileWriter
 import parser.ContentDescription
-import parser.ArffJsonInstancesFile2
 import model.RawClassification
 import classifier.Classifier
 
@@ -16,18 +14,34 @@ object Test4 {
         val avgAbsClassification = classifications.map(c => math.abs(c.classification)).reduceLeft(_ + _) / classifications.size
         classifications.map(c => new RawClassification(c.id, c.classification / avgAbsClassification, c.realValue))
     }
-    
+
     def main(args: Array[String]) {
         println("test1")
         val res = List(
-            RawClassification.fromFile(new File("data/results/final_proj-abs_vec-conf4_or-1.0-tg-01XXXX_svm_tss-1000-200_tg-01XXXX_final-test_proj-abs_vec-conf4_or-1.0-tg-01XXXX.json")),
-            RawClassification.fromFile(new File("data/results/final_proj-abs_vec-conf4_or-2000.0-tg-01XXXX_c45-boost-30-tss-1000-200_tg-01XXXX_final-test_proj-abs_vec-conf4_or-2000.0-tg-01XXXX.json")),
-            RawClassification.fromFile(new File("data/results/final_proj-abs_vec-conf5_tf-idf_lsi-500_svm_tss-1000-200_tg-01XXXX_final-test_proj-abs_vec-conf5_tf-idf_lsi-500.json")),
-            RawClassification.fromFile(new File("data/results/final_proj-jour_vec-conf2_or-1.0-tg-01XXXX_c45-boost-30-tss-1000-200_tg-01XXXX_final-test_proj-jour_vec-conf2_or-1.0-tg-01XXXX.json")),
-            RawClassification.fromFile(new File("data/results/final_proj-ter_vec-conf2_or-1.0-tg-01XXXX_c45-boost-30-tss-1000-200_tg-01XXXX_final-test_proj-ter_vec-conf2_or-1.0-tg-01XXXX.json")),
-            RawClassification.fromFile(new File("data/results/final_proj-tit_vec-conf4_or-1.0-tg-01XXXX_c45-boost-30-tss-1000-200_tg-01XXXX_final-test_proj-tit_vec-conf4_or-1.0-tg-01XXXX.json")),
-            RawClassification.fromFile(new File("data/results/final_proj-tit_vec-conf4_or-1.0-tg-01XXXX_svm_tss-1000-200_tg-01XXXX_final-test_proj-tit_vec-conf4_or-1.0-tg-01XXXX.json")),
-            RawClassification.fromFile(new File("data/results/final_proj-tit_vec-conf5_tf-idf_lsi-250_svm_tss-1000-200_tg-01XXXX_final-test_proj-tit_vec-conf5_tf-idf_lsi-250.json"))
+            /*00-XX: RawClassification.fromFile(new File("data/results/exp_proj-abs_vec-conf8_tf-idf_norm_lsi-500_svm_tss-all-all_tg-00XXXX_exp-test_proj-abs_vec-conf8_tf-idf_norm_lsi-500.json")),
+            RawClassification.fromFile(new File("data/results/exp_proj-tit_vec-conf8_tf-idf_norm_lsi-250_svm_tss-all-all_tg-00XXXX_exp-test_proj-tit_vec-conf8_tf-idf_norm_lsi-250.json")),
+            RawClassification.fromFile(new File("data/results/exp_proj-abs_vec-conf8_or-25.0-500-tg-00XXXX_c45-boost-20-tss-1000-200_tg-00XXXX_exp-test_proj-abs_vec-conf8_or-25.0-500-tg-00XXXX.json")),
+            RawClassification.fromFile(new File("data/results/exp_proj-tit_vec-conf8_or-25.0-2000-tg-00XXXX_c45-boost-20-tss-1000-200_tg-00XXXX_exp-test_proj-tit_vec-conf8_or-25.0-2000-tg-00XXXX.json")),
+            RawClassification.fromFile(new File("data/results/exp_proj-jour_vec-conf2_or-2.0-0-tg-00XXXX_c45-boost-20-tss-2000-400_tg-00XXXX_exp-test_proj-jour_vec-conf2_or-2.0-0-tg-00XXXX.json")),
+            RawClassification.fromFile(new File("data/results/exp_proj-ter_vec-conf2_or-2.0-0-tg-00XXXX_c45-boost-20-tss-2000-400_tg-00XXXX_exp-test_proj-ter_vec-conf2_or-2.0-0-tg-00XXXX.json"))*/
+            /*13-XX: RawClassification.fromFile(new File("data/results/exp_proj-abs_vec-conf8_tf-idf_norm_lsi-500_svm_tss-all-all_tg-13XXXX_exp-test_proj-abs_vec-conf8_tf-idf_norm_lsi-500.json")),
+            RawClassification.fromFile(new File("data/results/exp_proj-tit_vec-conf8_tf-idf_norm_lsi-250_svm_tss-all-all_tg-13XXXX_exp-test_proj-tit_vec-conf8_tf-idf_norm_lsi-250.json")),
+            RawClassification.fromFile(new File("data/results/exp_proj-abs_vec-conf8_or-25.0-500-tg-13XXXX_c45-boost-20-tss-1000-200_tg-13XXXX_exp-test_proj-abs_vec-conf8_or-25.0-500-tg-13XXXX.json")),
+            RawClassification.fromFile(new File("data/results/exp_proj-tit_vec-conf8_or-25.0-500-tg-13XXXX_c45-boost-20-tss-1000-200_tg-13XXXX_exp-test_proj-tit_vec-conf8_or-25.0-500-tg-13XXXX.json")),
+            RawClassification.fromFile(new File("data/results/exp_proj-jour_vec-conf2_or-2.0-0-tg-13XXXX_c45-boost-20-tss-2000-400_tg-13XXXX_exp-test_proj-jour_vec-conf2_or-2.0-0-tg-13XXXX.json")),
+            RawClassification.fromFile(new File("data/results/exp_proj-ter_vec-conf2_or-2.0-0-tg-13XXXX_c45-boost-20-tss-2000-400_tg-13XXXX_exp-test_proj-ter_vec-conf2_or-2.0-0-tg-13XXXX.json"))*/
+            /*91-XX: RawClassification.fromFile(new File("data/results/exp_proj-abs_vec-conf8_tf-idf_norm_lsi-500_svm_tss-all-all_tg-91XXXX_exp-test_proj-abs_vec-conf8_tf-idf_norm_lsi-500.json")),
+            RawClassification.fromFile(new File("data/results/exp_proj-tit_vec-conf8_tf-idf_norm_lsi-250_svm_tss-all-all_tg-91XXXX_exp-test_proj-tit_vec-conf8_tf-idf_norm_lsi-250.json")),
+            RawClassification.fromFile(new File("data/results/exp_proj-abs_vec-conf8_or-10.0-500-tg-91XXXX_norm_c45-boost-20-tss-1000-200_tg-91XXXX_exp-test_proj-abs_vec-conf8_or-10.0-500-tg-91XXXX_norm.json")),
+            RawClassification.fromFile(new File("data/results/exp_proj-tit_vec-conf8_or-10.0-500-tg-91XXXX_norm_c45-boost-20-tss-1000-200_tg-91XXXX_exp-test_proj-tit_vec-conf8_or-10.0-500-tg-91XXXX_norm.json")),
+            RawClassification.fromFile(new File("data/results/exp_proj-jour_vec-conf2_or-2.0-0-tg-91XXXX_c45-boost-20-tss-2000-400_tg-91XXXX_exp-test_proj-jour_vec-conf2_or-2.0-0-tg-91XXXX.json")),
+            RawClassification.fromFile(new File("data/results/exp_proj-ter_vec-conf2_or-2.0-0-tg-91XXXX_c45-boost-20-tss-2000-400_tg-91XXXX_exp-test_proj-ter_vec-conf2_or-2.0-0-tg-91XXXX.json"))*/
+            RawClassification.fromFile(new File("data/results/exp_proj-abs_vec-conf8_tf-idf_norm_lsi-500_svm_tss-all-all_tg-15XXXX_exp-test_proj-abs_vec-conf8_tf-idf_norm_lsi-500.json")),
+            RawClassification.fromFile(new File("data/results/exp_proj-tit_vec-conf8_tf-idf_norm_lsi-250_svm_tss-all-all_tg-15XXXX_exp-test_proj-tit_vec-conf8_tf-idf_norm_lsi-250.json")),
+            RawClassification.fromFile(new File("data/results/exp_proj-abs_vec-conf8_or-5.0-500-tg-15XXXX_norm_c45-boost-20-tss-1000-200_tg-15XXXX_exp-test_proj-abs_vec-conf8_or-5.0-500-tg-15XXXX_norm.json")),
+            RawClassification.fromFile(new File("data/results/exp_proj-tit_vec-conf8_or-5.0-500-tg-15XXXX_norm_c45-boost-20-tss-1000-200_tg-15XXXX_exp-test_proj-tit_vec-conf8_or-5.0-500-tg-15XXXX_norm.json")),
+            RawClassification.fromFile(new File("data/results/exp_proj-jour_vec-conf2_or-2.0-0-tg-15XXXX_c45-boost-20-tss-2000-400_tg-15XXXX_exp-test_proj-jour_vec-conf2_or-2.0-0-tg-15XXXX.json")),
+            RawClassification.fromFile(new File("data/results/exp_proj-ter_vec-conf2_or-2.0-0-tg-15XXXX_c45-boost-20-tss-2000-400_tg-15XXXX_exp-test_proj-ter_vec-conf2_or-2.0-0-tg-15XXXX.json"))
         )
         
         val combinations = (for(i <- 1 to res.length) yield {

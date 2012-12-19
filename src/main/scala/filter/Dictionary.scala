@@ -15,7 +15,7 @@ abstract class Dictionary extends Iterable[String] {
     def wordFun(word: String): String = word
     def wordCond(word: String): Boolean = true
     val stopList: Seq[String] = List()
-    val minWordCount = 10
+    val minWordCount: Int
     
     @transient lazy val dirtyFlag = new DirtyFlag
     @transient lazy val _dict: JavaSet[String] = new TreeSet[String]()

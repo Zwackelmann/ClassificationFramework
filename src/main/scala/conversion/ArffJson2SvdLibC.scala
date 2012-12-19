@@ -11,12 +11,12 @@ import format.arff_json.SparseArffJsonInstance
 import format.arff_json.SparseArffJsonInstance
 import format.arff_json.DenseArffJsonInstance
 import format.arff_json.SparseArffJsonInstance
-import parser.ArffJsonInstancesFile
 import parser.ContentDescription
+import parser.ArffJsonInstancesSource
 
 object ArffJson2SvdLibC {
     def main(args: Array[String]) {
-        val inst = new ArffJsonInstancesFile("title-only", ContentDescription.TestSet, List(/* history */))
+        val inst = ArffJsonInstancesSource("title-only", ContentDescription.TestSet, List(/* history */))
         
         val out = new BufferedWriter(new FileWriter(new File("svdLibCInput.txt")))
         

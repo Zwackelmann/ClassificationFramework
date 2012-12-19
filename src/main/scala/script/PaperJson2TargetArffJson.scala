@@ -43,7 +43,6 @@ class PaperJson2TargetArffJson(inFile: File, outFile: File) extends Json2ArffJso
             new StringArffJsonAttribute("abstract"), 
             new StringArffJsonAttribute("journals"),
             new StringArffJsonAttribute("terms")
-        ),
-        metaAttributes = List(new StringArffJsonAttribute("an"))
+        )
     )
 }

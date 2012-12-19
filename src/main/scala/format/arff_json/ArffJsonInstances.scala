@@ -11,7 +11,6 @@ import weka.core.SparseInstance
 import weka.core.Instances
 import weka.core.FastVector
 import java.io.Writer
-import parser.ArffJsonInstancesReader
 import parser.ArffJsonInstancesSource
 
 object ArffJsonInstances {
@@ -133,7 +132,7 @@ class ArffJsonInstances(inst: ArffJsonInstancesSource, virtualAttributes: List[P
     import ArffJsonInstance.addValue
     
     for(arffJsonInstance <- inst.iterator) {
-        instancesMetadata(instancesCounter) = Pair(arffJsonInstance.id, arffJsonInstance.mscClasses)
+        instancesMetadata(instancesCounter) = Pair(arffJsonInstance.id, arffJsonInstance.categories)
         
         val inst = arffJsonInstance match {
             case denseInst: DenseArffJsonInstance => {                   

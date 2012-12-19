@@ -5,7 +5,6 @@ import java.io.BufferedWriter
 import java.io.FileWriter
 import format.arff_json.DenseArffJsonInstance
 import format.arff_json.SparseArffJsonInstance
-import parser.ArffJsonInstancesFile
 import parser.ArffJsonInstancesSource
 
 object ArffJson2Joachims {
@@ -13,7 +12,7 @@ object ArffJson2Joachims {
         val out = new BufferedWriter(new FileWriter(outFile), 102400);
         
         for(arffJsonInstance <- inst.iterator) {
-            val isClass = classFun(arffJsonInstance.mscClasses)
+            val isClass = classFun(arffJsonInstance.categories)
             
             val data = (arffJsonInstance match {
                 case d: DenseArffJsonInstance => {

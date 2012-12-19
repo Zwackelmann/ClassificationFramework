@@ -15,16 +15,14 @@ import format.arff_json.ArffJsonHeader
 import format.arff_json.NumericArffJsonAttribute
 import format.arff_json.DenseArffJsonInstance
 import format.arff_json.NominalArffJsonAttribute
-import parser.ArffJsonInstancesFile
 import parser.ArffJsonInstancesSource
-import format.arff_json.HistoryItem
 
 object NominalValueFromDictFilter {
     def apply(confName: String): FilterFactory = {
         confName match {
             case "conf1" => new StorableFilterFactory() {
                 def apply(trainBase: ArffJsonInstancesSource) = {
-                    val filter = new Conf1(this)
+                    val filter = new Conf1
                     filter.expandDict(trainBase)
                     filter
                 }
@@ -37,7 +35,7 @@ object NominalValueFromDictFilter {
         }
     }
     
-    class Conf1(val historyAppendix: HistoryItem) extends NominalValueFromDictFilter {
+    class Conf1 extends NominalValueFromDictFilter {
         override def inst2Words(inst: ArffJsonInstance) = inst.data(0).asInstanceOf[List[String]].toSeq
         override def wordFun(word: String) = word.filter(_.isLetter).toLowerCase()
         
@@ -53,8 +51,6 @@ abstract class NominalValueFromDictFilter extends GlobalFilter with Serializable
     def attributeName = "nominal_attribute"
     
     def expandDict(source: ArffJsonInstancesSource) {
-        println("train nominal value filter with " + source.contentDescription)
-        
         for(inst <- source.iterator) {
             for(word <- inst2Words(inst)) {
                 dict.add(wordFun(word))
@@ -64,33 +60,27 @@ abstract class NominalValueFromDictFilter extends GlobalFilter with Serializable
     }
     
     override def applyFilter(source: ArffJsonInstancesSource) = {
-        println("use nominal value filter on " + source.contentDescription)
-        
         val word2IndexMap = (for((word, i) <- (dict.zipWithIndex)) yield word -> i).toMap
         
-        source.map(
-            (elements: Iterator[ArffJsonInstance]) => (for(inst <- elements) yield {
-                val words = inst2Words(inst)
-                
-                new SparseArffJsonInstance(
-                    inst.id,
-                    inst.mscClasses,
-                    words
-                        .filter(w => dict.contains(wordFun(w)))
-                        .map(w => word2IndexMap(wordFun(w)) -> 1.0)
-                        .toMap,
-                    source.header.attributes.size
-                )
-            }),
-            headerMapping _,
-            historyAppendix
+        source.map((inst: ArffJsonInstance) => {
+            val words = inst2Words(inst)
+            
+            new SparseArffJsonInstance(
+                inst.id,
+                inst.categories,
+                words
+                    .filter(w => dict.contains(wordFun(w)))
+                    .map(w => word2IndexMap(wordFun(w)) -> 1.0)
+                    .toMap,
+                source.header.attributes.size
+            )},
+            headerMapping _
         )
     }
     
     def headerMapping(header: ArffJsonHeader) = new ArffJsonHeader(
             header.relationName, 
-            dict.toList.sortBy(s => s).map(word => new NumericArffJsonAttribute(word)).toList,
-            List()
+            dict.toList.sortBy(s => s).map(word => new NumericArffJsonAttribute(word)).toList
         )
 }
 

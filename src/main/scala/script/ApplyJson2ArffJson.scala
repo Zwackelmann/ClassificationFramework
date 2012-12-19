@@ -21,8 +21,7 @@ object ApplyJson2ArffJson {
             
             def header = new ArffJsonHeader(
                 relationName = "abstract_only",
-                attributes = List(new StringArffJsonAttribute("abstract")),
-                metaAttributes = List(new StringArffJsonAttribute("an"))
+                attributes = List(new StringArffJsonAttribute("abstract"))
             )
             
         }.run

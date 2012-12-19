@@ -1,7 +1,5 @@
 package classifier
 import parser.ArffJsonInstancesSource
-import parser.ArffJsonInstancesMapping
-import parser.ArffJsonInstancesFile
 import filter.VectorFromDictFilter
 import common.Path
 import common.Path._
@@ -16,9 +14,10 @@ import common.ForgetableMap
 import scala.collection.mutable.HashMap
 import weka.classifiers.trees.J48
 import parser.ContentDescription
-import format.arff_json.HistoryItem
 import format.arff_json.InstancesMappings
 import java.io.File
+import filter.FilterFactory
+import parser.ContentDescribable
 
 object Learner {
     val serializeClassifiers = true
@@ -50,19 +49,11 @@ trait Learner {
     def loadClassifier(file: File): Classifier
     
     def fileAppendix: String
-    def targetHistory(targetClassDef: TargetClassDefinition): List[HistoryItem]
+    def targetHistory(targetClassDef: TargetClassDefinition): List[FilterFactory]
     
-    def deliverInstances(contentDescription: ContentDescription) = {
-        if(contentDescription.file.exists) {
-            Some(new ArffJsonInstancesFile(contentDescription))
-        } else {
-            None
-        }
-    }
-    
-    def mapInstances(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition, set: Option[ContentDescription.Set]): ArffJsonInstancesSource = {
+    def mapInstances(inst: ArffJsonInstancesSource with ContentDescribable, targetClassDef: TargetClassDefinition, set: Option[ContentDescription.Set]): ArffJsonInstancesSource with ContentDescribable = {
         val targetContentDescription = {
-            val cd1 = inst.contentDescription.withHistory(
+            val cd1 = inst.contentDescription.withFilterFactories(
                 targetHistory(targetClassDef)
             )
             
@@ -80,7 +71,7 @@ trait Learner {
         )
     }
     
-    def classifier(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition) = {
+    def classifier(inst: ArffJsonInstancesSource with ContentDescribable, targetClassDef: TargetClassDefinition) = {
         val trainBaseCd = ContentDescription(inst.contentDescription.base, ContentDescription.TrainSet, targetHistory(targetClassDef))
         val targetCd = ContentDescription(inst.contentDescription.base, inst.contentDescription.set, targetHistory(targetClassDef))
         val classifierPath = Learner.classifierPath(trainBaseCd, targetClassDef, Some(this))
@@ -110,7 +101,7 @@ trait Learner {
         }
     }
     
-    def classifications(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition) = {
+    def classifications(inst: ArffJsonInstancesSource with ContentDescribable, targetClassDef: TargetClassDefinition) = {
         val trainBaseCd = ContentDescription(inst.contentDescription.base, ContentDescription.TrainSet, targetHistory(targetClassDef))
         val targetCd = ContentDescription(inst.contentDescription.base, inst.contentDescription.set, targetHistory(targetClassDef))
         
@@ -129,7 +120,7 @@ trait Learner {
         }
     }
     
-    def filterAndGroup(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition, positiveThreshold: Double = 0.0, certaintyThreshold: Double = 0.0) = {
+    def filterAndGroup(inst: ArffJsonInstancesSource with ContentDescribable, targetClassDef: TargetClassDefinition, positiveThreshold: Double = 0.0, certaintyThreshold: Double = 0.0) = {
         Map(
             TRUE_POSITIVE -> List(),
             FALSE_POSITIVE -> List(),
@@ -138,24 +129,24 @@ trait Learner {
         ) ++ classifications(inst, targetClassDef).filter(c => math.abs(c.classification - positiveThreshold) > certaintyThreshold).groupBy(_.cat)
     }
     
-    def precision(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition, certaintyThreshold: Double = 0.0) = {
+    def precision(inst: ArffJsonInstancesSource with ContentDescribable, targetClassDef: TargetClassDefinition, certaintyThreshold: Double = 0.0) = {
         val filteredAndGrouped = filterAndGroup(inst, targetClassDef, certaintyThreshold)
         filteredAndGrouped(TRUE_POSITIVE).size.toDouble / (filteredAndGrouped(TRUE_POSITIVE).size + filteredAndGrouped(FALSE_POSITIVE).size)
     }
     
-    def recall(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition, certaintyThreshold: Double = 0.0) = {
+    def recall(inst: ArffJsonInstancesSource with ContentDescribable, targetClassDef: TargetClassDefinition, certaintyThreshold: Double = 0.0) = {
         val filteredAndGrouped = filterAndGroup(inst, targetClassDef, certaintyThreshold)
         filteredAndGrouped(TRUE_POSITIVE).size.toDouble / (filteredAndGrouped(TRUE_POSITIVE).size + filteredAndGrouped(FALSE_NEGATIVE).size)
     }
     
-    def fMeasure(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition, alpha: Double = 1.0, positiveThreshold: Double = 0.0, certaintyThreshold: Double = 0.0) = {
+    def fMeasure(inst: ArffJsonInstancesSource with ContentDescribable, targetClassDef: TargetClassDefinition, alpha: Double = 1.0, positiveThreshold: Double = 0.0, certaintyThreshold: Double = 0.0) = {
         val prec = precision(inst, targetClassDef, certaintyThreshold)
         val rec = recall(inst, targetClassDef, certaintyThreshold)
         
         ((1 + alpha) * prec * rec) / ((alpha * prec) + rec)
     }
         
-    def report(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition, certaintyThreshold: Double = 0.0) {
+    def report(inst: ArffJsonInstancesSource with ContentDescribable, targetClassDef: TargetClassDefinition, certaintyThreshold: Double = 0.0) {
         val filteredAndGrouped = filterAndGroup(inst, targetClassDef, certaintyThreshold)
         
         println("precision: " + precision(inst, targetClassDef, certaintyThreshold))

@@ -23,22 +23,14 @@ object ArffJsonHeader {
             )
         }).toList
         
-        val jsonMetaAttributes = assertAtt("meta-attributes").asInstanceOf[JSONArray]
-        val metaAttributes = (for(i <- 0 until jsonMetaAttributes.size()) yield {
-            ArffJsonAttribute.jsonToArffJsonAttribute(
-                jsonMetaAttributes.get(i).asInstanceOf[JSONObject]
-            )
-        }).toList
-        
-        new ArffJsonHeader(relationName, attributes, metaAttributes)
+        new ArffJsonHeader(relationName, attributes)
     }
 }
 
-class ArffJsonHeader(var relationName: String, var attributes: List[ArffJsonAttribute], var metaAttributes: List[ArffJsonAttribute]) {
+class ArffJsonHeader(var relationName: String, var attributes: List[ArffJsonAttribute]) {
     def toJson = "{" +
         "\"relation-name\" : \"" + escape(relationName) + "\", " +
-        "\"attributes\" : [" + attributes.map(_.toJson).mkString(", ") + "], " +
-        "\"meta-attributes\" : [" + metaAttributes.map(_.toJson).mkString(", ") + "]" +
+        "\"attributes\" : [" + attributes.map(_.toJson).mkString(", ") + "]" +
     "}"
         
     def adeptToInstances(instances: Instances) {

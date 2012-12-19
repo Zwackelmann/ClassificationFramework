@@ -14,7 +14,6 @@ import format.arff_json.DenseArffJsonInstance
 import net.sf.json.JSONSerializer
 import net.sf.json.JSONArray
 import model.RawClassification
-import parser.ArffJsonInstancesFile
 import common.Common.FileConversion._
 import parser.ArffJsonInstancesSource
 import scala.collection.immutable.Iterable
@@ -24,6 +23,7 @@ import common.Path.classifierPath
 import common.Path
 import classifier.Learner
 import parser.ContentDescription
+import parser.ContentDescribable
 
 /**
  * An object to apply Joachim's svm_learn algorithm.
@@ -122,7 +122,7 @@ object JoachimsSVMClassifyApplier extends ExternalAlgorithmApplier("svm_classify
             val result = pair._1
             val inst = pair._2
             
-            new RawClassification(inst.id, result.toDouble, if(classFun(inst.mscClasses)) 1 else -1)
+            new RawClassification(inst.id, result.toDouble, if(classFun(inst.categories)) 1 else -1)
         })
     }
     
@@ -142,22 +142,46 @@ object JoachimsSVMClassifyApplier extends ExternalAlgorithmApplier("svm_classify
 object JoachimsSVMClassifier {
     val modelPath = new Path("svm_models") !
     val idAppendix = "svm"
-    def load(file: File) = common.ObjectToFile.readObjectFromFile(file).asInstanceOf[JoachimsSVMClassifier]
+    def load(file: File) = {
+        val savedObject = common.ObjectToFile.readObjectFromFile(file).asInstanceOf[Map[String, Any]]
+        new JoachimsSVMClassifier(
+            savedObject("options").asInstanceOf[Map[String, List[String]]],
+            savedObject("modelFilePath").asInstanceOf[String],
+            savedObject("trainBaseContentDescription").asInstanceOf[Option[ContentDescription]],
+            savedObject("targetClassDef").asInstanceOf[TargetClassDefinition],
+            savedObject("parent").asInstanceOf[Option[Learner]]
+        )
+    }
 }
 
 @serializable
-class JoachimsSVMClassifier(options: Map[String, List[String]], @transient trainBase: ArffJsonInstancesSource, val targetClassDef: TargetClassDefinition, val parent: Option[Learner]) extends Classifier(trainBase, targetClassDef, parent) {
+class JoachimsSVMClassifier(_options: Map[String, List[String]], _modelFilename: String, trainBaseContentDescription: Option[ContentDescription], targetClassDef: TargetClassDefinition, parent: Option[Learner]) extends Classifier(trainBaseContentDescription, targetClassDef, parent) {
+    
+    def this(options: Map[String, List[String]], trainBase: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition, parent: Option[Learner]) {
+        this(
+        options,
+        common.Common.randomStream().map(d => (d*9).toInt).take(32).mkString,
+        (trainBase match {
+            case co: ContentDescribable => Some(co.contentDescription)
+            case _ => None
+        }),
+        targetClassDef,
+        parent
+        )
+        
+        buildClassifier(trainBase)
+    }
+    
     def this(options: Map[String, List[String]], trainBase: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition, parent: Learner) = 
         this(options, trainBase, targetClassDef, Some(parent))
         
     def this(options: Map[String, List[String]], trainBase: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition) = 
         this(options, trainBase, targetClassDef, None)
     
-    var modelFilename = common.Common.randomStream().map(d => (d*9).toInt).take(32).mkString
+    val options = _options
+    val modelFilename = _modelFilename
     def modelFile = (JoachimsSVMClassifier.modelPath / modelFilename).file
     
-	buildClassifier(trainBase)
-	
 	private def buildClassifier(inst: ArffJsonInstancesSource) {
 		JoachimsSVMLearnApplier(
 			options,
@@ -167,19 +191,27 @@ class JoachimsSVMClassifier(options: Map[String, List[String]], @transient train
 		)
 	}
     
-    def calculateClassifications(mappedInst: ArffJsonInstancesSource) = new Iterable[RawClassification] {
-        println("calculate classifications for " + mappedInst.contentDescription)
-        
-        def iterator = JoachimsSVMClassifyApplier(
-            options, 
-            mappedInst, 
-            modelFile, 
-            targetClassDef
-        ) 
+    def calculateClassifications(mappedInst: ArffJsonInstancesSource) = {
+        new Iterable[RawClassification] {
+            def iterator = JoachimsSVMClassifyApplier(
+                options, 
+                mappedInst, 
+                modelFile, 
+                targetClassDef
+            ) 
+        }
     }
     
     def save(outFile: File) {
-        common.ObjectToFile.writeObjectToFile(this, outFile)
+        val objToSave = Map[String, Any](
+            "modelFilePath" -> this.modelFilename,
+            "options" -> this.options,
+            "trainBaseContentDescription" -> this.trainBaseContentDescription,
+            "targetClassDef" -> this.targetClassDef,
+            "parent" -> this.parent
+        )
+        
+        common.ObjectToFile.writeObjectToFile(objToSave, outFile)
     }
     
     override def toString = "SvmClassifier(trainBase: " + trainBaseContentDescription + ", targetClassDef: " + targetClassDef + ")"

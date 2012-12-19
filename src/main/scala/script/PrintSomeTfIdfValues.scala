@@ -1,5 +1,4 @@
 package script
-import parser.ArffJsonInstancesFile2
 import parser.ContentDescription
 import java.io.File
 import scala.collection.mutable.HashMap
@@ -8,7 +7,7 @@ import format.arff_json.SparseArffJsonInstance
 
 object PrintSomeTfIdfValues {
     def main(args: Array[String]) {
-        val source = new ArffJsonInstancesFile2(new File("data/arffJson/exp-train_proj-abs.json"), ContentDescription("exp", ContentDescription.TrainSet, List()))
+        val source = ArffJsonInstancesSource(new File("data/arffJson/exp-train_proj-abs.json"), ContentDescription("exp", ContentDescription.TrainSet, List()))
         
         /*val (tf, numDocuments) = {
             val tf = new HashMap[Int, Int] {
