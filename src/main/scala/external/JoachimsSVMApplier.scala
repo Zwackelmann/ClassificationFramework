@@ -47,7 +47,8 @@ object JoachimsSVMLearnApplier extends ExternalAlgorithmApplier("svm_learn") {
         
         val tmpFile = {
             def randStream: Stream[Int] = Stream.cons((math.random*10).toInt, randStream)
-            File.createTempFile(randStream.take(32).mkString(""), null)
+            val filename = randStream.take(32).mkString("")
+            File.createTempFile(filename, null)
         }
         
         ArffJson2Joachims(inst, tmpFile, classFun)
@@ -142,14 +143,15 @@ object JoachimsSVMClassifyApplier extends ExternalAlgorithmApplier("svm_classify
 object JoachimsSVMClassifier {
     val modelPath = new Path("svm_models") !
     val idAppendix = "svm"
-    def load(file: File) = {
-        val savedObject = common.ObjectToFile.readObjectFromFile(file).asInstanceOf[Map[String, Any]]
+    def load(file: File, learner: Option[Learner] = None) = {
+        val savedObject = common.ObjectToFile.readObjectFromFile(file).asInstanceOf[Array[Any]]
+        
         new JoachimsSVMClassifier(
-            savedObject("options").asInstanceOf[Map[String, List[String]]],
-            savedObject("modelFilePath").asInstanceOf[String],
-            savedObject("trainBaseContentDescription").asInstanceOf[Option[ContentDescription]],
-            savedObject("targetClassDef").asInstanceOf[TargetClassDefinition],
-            savedObject("parent").asInstanceOf[Option[Learner]]
+            try { savedObject(0).asInstanceOf[Map[String, List[String]]] } catch { case _ => Map[String, List[String]]("-v" -> List("0")) },
+            savedObject(0).asInstanceOf[String],
+            savedObject(2).asInstanceOf[Option[ContentDescription]],
+            savedObject(3).asInstanceOf[TargetClassDefinition],
+            learner
         )
     }
 }
@@ -203,12 +205,12 @@ class JoachimsSVMClassifier(_options: Map[String, List[String]], _modelFilename:
     }
     
     def save(outFile: File) {
-        val objToSave = Map[String, Any](
-            "modelFilePath" -> this.modelFilename,
-            "options" -> this.options,
-            "trainBaseContentDescription" -> this.trainBaseContentDescription,
-            "targetClassDef" -> this.targetClassDef,
-            "parent" -> this.parent
+        val objToSave = Array[Any](
+            this.modelFilename,
+            this.options,
+            this.trainBaseContentDescription,
+            this.targetClassDef,
+            None
         )
         
         common.ObjectToFile.writeObjectToFile(objToSave, outFile)

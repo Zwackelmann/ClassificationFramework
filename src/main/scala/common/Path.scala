@@ -7,6 +7,7 @@ object Path {
     val filterPath = new Path("filter") !
     val classifierPath = new Path("classifier") !
     val resultsPath = new Path("results") !
+    val thresholdsPath = new Path("thresholds") !
     
     def join(path1: String, path2: String, separator: String) = {
         if(path1.substring(path1.length()-separator.length, path1.length()) == separator) {

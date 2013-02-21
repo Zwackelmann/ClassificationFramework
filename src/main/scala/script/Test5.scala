@@ -2,15 +2,16 @@ package script
 import model.RawClassification
 import java.io.File
 
+import parser.ArffJsonInstancesSource
 object Test5 {
     def main(args: Array[String]) {
-        val res = RawClassification.fromFile(new File("data/results/exp_proj-abs_vec-conf9-min-10_svm_tss-all-all_tg-00XXXX_exp-test_proj-abs_vec-conf9-min-10.json"))
+        val corpus = ArffJsonInstancesSource(new File("data/arffJson/corpus.json"))
+        val numCats = corpus.map(inst => (inst.categories.map(_.substring(0, 2)).distinct.map(c => c -> inst.categories.size))).flatten.toList.groupBy(_._1).map(x => {
+            val y = x._2.map(_._2)
+            x._1 -> y.sum.toDouble / y.size
+        })
         
-        val trueNegatives = res.filter(r => r.trueNegative)
-        println(trueNegatives.map(_.classification).reduce(_ + _) / trueNegatives.size)
-        
-        val falseNegatives = res.filter(r => r.falseNegative)
-        println(falseNegatives.map(_.classification).reduce(_ + _) / falseNegatives.size)
+        println(numCats.mkString("\n"))
     }
 }
 

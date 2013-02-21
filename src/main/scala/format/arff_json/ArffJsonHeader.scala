@@ -37,6 +37,11 @@ class ArffJsonHeader(var relationName: String, var attributes: List[ArffJsonAttr
         relationName = instances.relationName()
         attributes = (for(i <- 0 until instances.numAttributes()) yield ArffJsonAttribute(instances.attribute(i))).toList
     }
+    
+    override def equals(a: Any) = a match {
+        case h: ArffJsonHeader => h.relationName == this.relationName && h.attributes == this.attributes
+        case _ => false
+    }
 }
 
 

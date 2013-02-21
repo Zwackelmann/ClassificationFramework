@@ -74,7 +74,7 @@ object Common {
                 buffer
             }
             
-            def hasNext = !(buffer == null && bufferNext() == null)
+            def hasNext = buffer != null || bufferNext() != null
             
             def next() = if(hasNext) {
                 val b = buffer
@@ -88,7 +88,10 @@ object Common {
         
         class FancyFile(val file: File) {
             def lines = new Iterable[String] {
-                def iterator = FileConversion.lines(new BufferedReader(new FileReader(file))) 
+                def iterator = {
+                    val br = new BufferedReader(new FileReader(file))
+                	FileConversion.lines(br)
+                }
             }
         }
         implicit def file2FancyFile(file: File) = new FancyFile(file)
@@ -98,6 +101,21 @@ object Common {
             def lines = FileConversion.lines(reader)
         }
         implicit def bufferedReader2FancyBufferedReader(reader: BufferedReader) = new FancyBufferedReader(reader)
+    }
+    
+    def sequenceWithountRoundingErrors(from: Double, to: Double, by: Double): List[Double] = {
+        def cleverRound(num: Double, mul: Double) = {
+            val log10 = math.log10(mul).toInt
+            if(log10 <= 0) {
+                val multiplicator = math.round(math.pow(10.0, -log10)).toInt
+                math.round(num * multiplicator).toDouble / multiplicator                    
+            } else {
+                val diviator = math.round(math.pow(10.0, log10)).toInt
+                math.round(num / diviator) * diviator
+            }
+        }
+        def f(from: Double, times: Int, mul: Double): Stream[Double] = cleverRound(from + times*mul, mul) #:: f(from, times + 1, mul)
+        (f(from, 0, by) takeWhile (_ <= to)).toList
     }
     
     def resolvePath(baseFile: File, path: String) = {

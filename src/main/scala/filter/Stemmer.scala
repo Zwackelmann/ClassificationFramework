@@ -7,9 +7,9 @@ trait Stemmer {
 }
 
 class PorterStemmer extends Stemmer {
-    val stemmer = new ExternalPorterStemmer
-        
     def stem(word: String) = {
+        val stemmer = new ExternalPorterStemmer
+        
         stemmer.setCurrent(word)
         stemmer.stem
         stemmer.getCurrent

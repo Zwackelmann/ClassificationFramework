@@ -20,5 +20,12 @@ data/svm_models
 data/results*
 data/filter*
 data/classifier*
+data/thresholds*
 dictText
 data(nach abgabe)
+.externalToolBuilders*
+consitentResults*
+data(nach paper)*
+hs_err*
+results*
+data/min100.metadata

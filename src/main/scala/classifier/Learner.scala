@@ -18,16 +18,19 @@ import format.arff_json.InstancesMappings
 import java.io.File
 import filter.FilterFactory
 import parser.ContentDescribable
+import filter.CategorySelectionFilter
 
 object Learner {
     val serializeClassifiers = true
     
+    def resultsFilename(trainBaseCD: ContentDescription, targetClassDef: TargetClassDefinition, learner: Option[Learner], classifiedInstCd: ContentDescription) =
+        classifierFilename(trainBaseCD, targetClassDef, learner) + "_" +  
+        classifiedInstCd.filenameAppendix + 
+        ".json"
+    
+    // TODO remove to keep XXXFilename methods consistent
     def resultsFilePath(trainBaseCD: ContentDescription, targetClassDef: TargetClassDefinition, learner: Option[Learner], classifiedInstCd: ContentDescription) = 
-        Path.resultsPath / (
-            classifierFilename(trainBaseCD, targetClassDef, learner) + "_" +  
-            classifiedInstCd.filenameAppendix + 
-            ".json"
-        )
+        Path.resultsPath / resultsFilename(trainBaseCD, targetClassDef, learner, classifiedInstCd)
         
     def classifierFilename(trainBaseCD: ContentDescription, targetClassDef: TargetClassDefinition, parent: Option[Learner]) = trainBaseCD.base + "_" + 
         trainBaseCD.formatHistory.map(_.historyAppendix).mkString("_") + "_" + 
@@ -71,7 +74,54 @@ trait Learner {
         )
     }
     
-    def classifier(inst: ArffJsonInstancesSource with ContentDescribable, targetClassDef: TargetClassDefinition) = {
+    
+    def classifierIfCached(cd: ContentDescription, targetClassDef: TargetClassDefinition): Option[Classifier] = {
+        val trainBaseCd = ContentDescription(cd.base, ContentDescription.TrainSet, targetHistory(targetClassDef))
+        val targetCd = ContentDescription(cd.base, cd.set, targetHistory(targetClassDef))
+        val classifierPath = Learner.classifierPath(trainBaseCd, targetClassDef, Some(this))
+        
+        println("check if " + classifierPath + " exists... ")
+        if(classifierPath.exists()) {
+            println("... yes => load classifier from file")
+            try {
+            	Some(loadClassifier(classifierPath))
+            } catch {
+              	case _ => { 
+              		val success = classifierPath.delete()
+              		println("cannot read classifier file => delete")
+              		None
+              	}
+            }
+        } else {
+            println("... no => skip")
+            None
+        }
+    }
+    
+    def classifierIfCached(inst: ArffJsonInstancesSource with ContentDescribable, targetClassDef: TargetClassDefinition): Option[Classifier] = {
+        val trainBaseCd = ContentDescription(inst.contentDescription.base, ContentDescription.TrainSet, targetHistory(targetClassDef))
+        val targetCd = ContentDescription(inst.contentDescription.base, inst.contentDescription.set, targetHistory(targetClassDef))
+        val classifierPath = Learner.classifierPath(trainBaseCd, targetClassDef, Some(this))
+        
+        println("check if " + classifierPath + " exists... ")
+        if(classifierPath.exists()) {
+            println("... yes => load classifier from file")
+            try {
+            	Some(loadClassifier(classifierPath))
+            } catch {
+              	case _ => { 
+              		val success = classifierPath.delete()
+              		println("cannot read classifier file => delete")
+              		None
+              	}
+            }
+        } else {
+            println("... no => skip")
+            None
+        }
+    }
+    
+    def classifier(inst: ArffJsonInstancesSource with ContentDescribable, targetClassDef: TargetClassDefinition): Classifier = {
         val trainBaseCd = ContentDescription(inst.contentDescription.base, ContentDescription.TrainSet, targetHistory(targetClassDef))
         val targetCd = ContentDescription(inst.contentDescription.base, inst.contentDescription.set, targetHistory(targetClassDef))
         val classifierPath = Learner.classifierPath(trainBaseCd, targetClassDef, Some(this))
@@ -81,7 +131,15 @@ trait Learner {
         }
         if(Learner.serializeClassifiers && classifierPath.exists()) {
             println("... yes => load classifier from file")
-            loadClassifier(classifierPath)
+            try {
+            	loadClassifier(classifierPath)
+            } catch {
+              	case _ => { 
+              		val success = classifierPath.delete()
+              		println("cannot read classifier file => delete classifier and regenerate")
+              		classifier(inst, targetClassDef)
+              	}
+            }
         } else {
             if(Learner.serializeClassifiers) {
                 println("... no => train classifier")
@@ -101,7 +159,58 @@ trait Learner {
         }
     }
     
-    def classifications(inst: ArffJsonInstancesSource with ContentDescribable, targetClassDef: TargetClassDefinition) = {
+    def classificationsIfCached(inst: ArffJsonInstancesSource with ContentDescribable, targetClassDef: TargetClassDefinition, verifyClassifications: Boolean = false): Option[List[RawClassification]] = {
+        val trainBaseCd = ContentDescription(inst.contentDescription.base, ContentDescription.TrainSet, targetHistory(targetClassDef))
+        val targetCd = ContentDescription(inst.contentDescription.base, inst.contentDescription.set, targetHistory(targetClassDef))
+        
+        val resultsFilePath = Learner.resultsFilePath(trainBaseCd, targetClassDef, Some(this), targetCd)
+        println("check if " + resultsFilePath + " exists... ")
+        if(resultsFilePath.exists) {
+            println("... yes => load results from file")
+            val cachedClassifications = RawClassification.fromFile(resultsFilePath)
+            if(verifyClassifications) {
+            	println("verify classifications...")
+            	val availableIds = cachedClassifications.map(_.id).sortBy(c => c)
+            	val necessaryIds = mapInstances(inst, targetClassDef, None).map(_.id).toList.sortBy(c => c)
+            	
+            	val valid = (availableIds zip necessaryIds).forall(x => x._1 == x._2)
+            	if(valid) {
+            	    Some(cachedClassifications)
+            	} else {
+            	    println("verification failed => try to delete results file")
+            	    if(!resultsFilePath.delete()) {
+            	        throw new RuntimeException("results file is invalid but could not be deleted...");
+            	    } else {
+            	        println("\n\n\nINVALID RESULTS FILE DELETED!!!\n\n\n")
+            	        None
+            	    }
+            	}
+            } else {
+                Some(cachedClassifications)
+            }
+        } else {
+            println("... no => skip")
+            None
+        }
+    }
+    
+    def classificationsIfCached(cd: ContentDescription, targetClassDef: TargetClassDefinition): Option[List[RawClassification]] = {
+        val trainBaseCd = ContentDescription(cd.base, ContentDescription.TrainSet, targetHistory(targetClassDef))
+        val targetCd = ContentDescription(cd.base, cd.set, targetHistory(targetClassDef))
+        
+        val resultsFilePath = Learner.resultsFilePath(trainBaseCd, targetClassDef, Some(this), targetCd)
+        println("check if " + resultsFilePath + " exists... ")
+        if(resultsFilePath.exists) {
+            println("... yes => load results from file")
+            val cachedClassifications = RawClassification.fromFile(resultsFilePath)
+            Some(cachedClassifications)
+        } else {
+            println("... no => skip")
+            None
+        }
+    }
+    
+    def classifications(inst: ArffJsonInstancesSource with ContentDescribable, targetClassDef: TargetClassDefinition, verifyClassifications: Boolean = false): List[RawClassification] = {
         val trainBaseCd = ContentDescription(inst.contentDescription.base, ContentDescription.TrainSet, targetHistory(targetClassDef))
         val targetCd = ContentDescription(inst.contentDescription.base, inst.contentDescription.set, targetHistory(targetClassDef))
         
@@ -110,13 +219,41 @@ trait Learner {
             println("check if " + resultsFilePath + " exists... ")
             if(resultsFilePath.exists) {
                 println("... yes => load results from file")
-                RawClassification.fromFile(resultsFilePath)
+                val cachedClassifications = RawClassification.fromFile(resultsFilePath)
+                if(verifyClassifications) {
+                	println("verify classifications...")
+                	val availableIds = cachedClassifications.map(_.id).toSet
+                	val _necessaryIds = negessaryIds(inst, targetClassDef)
+                	
+                	if(availableIds == _necessaryIds) {
+                	    cachedClassifications
+                	} else {
+                	    println("verification failed => try to delete results file")
+                	    if(!resultsFilePath.delete()) {
+                	        throw new RuntimeException("delete failed")
+                	    } else {
+                	        classifications(inst, targetClassDef, verifyClassifications)
+                	    }
+                	}
+                } else {
+                    cachedClassifications
+                }
             } else {
                 println("... no => calculate classifications")
                 classifier(inst, targetClassDef).classifications(mapInstances(inst, targetClassDef, None))
             }
         } else {
             classifier(inst, targetClassDef).classifications(mapInstances(inst, targetClassDef, None))
+        }
+    }
+    
+    def negessaryIds(inst: ArffJsonInstancesSource, cat: TargetClassDefinition) {
+        val filterClasses = targetHistory(cat).filter(_.historyAppendix.substring(0, 3) == "sel").map(_.apply(inst).asInstanceOf[CategorySelectionFilter].targetClass)
+        val necessaryids = if(filterClasses.isEmpty) {
+            inst.map(_.id).toSet
+        } else {
+            println("filter categories: " + filterClasses.map(_.filenameExtension))
+            inst.filter(i => filterClasses.forall(_.apply(i.categories))).map(_.id)
         }
     }
     

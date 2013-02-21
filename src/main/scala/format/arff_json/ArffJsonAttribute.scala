@@ -62,12 +62,24 @@ abstract class ArffJsonAttribute(val name: String) {
 
 class NumericArffJsonAttribute(name: String) extends ArffJsonAttribute(name) {
     def toJson = """{"name" : "%s", "type" : "numeric"}""".format(escape(name))
+    override def equals(a: Any) = a match {
+        case na: NumericArffJsonAttribute => na.name == this.name
+        case _ => false
+    }
 }
 class StringArffJsonAttribute(name: String) extends ArffJsonAttribute(escape(name)) {
     def toJson = """{"name" : "%s", "type" : "string"}""".format(escape(name))
+    override def equals(a: Any) = a match {
+        case sa: StringArffJsonAttribute => sa.name == this.name
+        case _ => false
+    }
 }
 class NominalArffJsonAttribute(name: String, val possibleValues: List[String]) extends ArffJsonAttribute(name) {
     def toJson = """{"name" : "%s", "type" : "nominal", "possible-values" : [%s]}""".format(name, possibleValues.map(v => "\"" + v + "\"").mkString(","))
+    override def equals(a: Any) = a match {
+        case na: NominalArffJsonAttribute => na.name == this.name
+        case _ => false
+    }
 }
 
 

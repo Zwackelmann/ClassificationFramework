@@ -20,7 +20,7 @@ object Classifier {
             FALSE_POSITIVE -> List(),
             TRUE_NEGATIVE -> List(),
             FALSE_NEGATIVE -> List()
-        ) ++ classifications.toList.filter(c => math.abs(c.classification) > certaintyThreshold).groupBy(_.cat)
+        ) ++ classifications.toList/*.filter(c => math.abs(c.classification) >= certaintyThreshold)*/.groupBy(_.cat)
     }
     
     def precision(classifications: Iterable[RawClassification], certaintyThreshold: Double = 0.0) = {

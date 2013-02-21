@@ -9,24 +9,24 @@ import weka.classifiers.{Classifier => WekaInternalClassifier}
 import java.io.File
 import format.arff_json.ArffJsonHeader
 import parser.ContentDescription
+import parser.ContentDescribable
 
 object WekaClassifier {
-    def load(file: File) = common.ObjectToFile.readObjectFromFile(file).asInstanceOf[WekaClassifier]
-}
-
-@serializable
-abstract class WekaClassifier(@transient trainBase: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition, parent: Option[Learner]) extends Classifier(trainBase, targetClassDef, parent) {
-    def this(trainBase: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition, parent: Learner) = 
-        this(trainBase, targetClassDef, Some(parent))
+    def load(file: File, parent: Option[Learner] = None) = {
+        val savedObject = common.ObjectToFile.readObjectFromFile(file).asInstanceOf[Array[Any]]
+        val wekaClassifier = savedObject(0).asInstanceOf[WekaInternalClassifier]
+        val trainBaseCd = savedObject(1).asInstanceOf[Option[ContentDescription]]
+        val targetClassDef = savedObject(2).asInstanceOf[TargetClassDefinition]
         
-    def this(trainBase: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition) = 
-        this(trainBase, targetClassDef, None)
+        new WekaClassifier(wekaClassifier, trainBaseCd, targetClassDef, parent)
+    }
     
-    def classifierConfig(): WekaInternalClassifier
+    def apply(trainBase: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition, parent: Option[Learner], classifierConfig: () => WekaInternalClassifier) = {
+        val classifier = builtClassifier(trainBase, targetClassDef, classifierConfig)
+        new WekaClassifier(classifier, trainBase match { case cd: ContentDescribable => Some(cd.contentDescription) case _ => None }, targetClassDef, parent)
+    }
     
-    val classifier = builtClassifier(trainBase)
-    
-    def builtClassifier(mappedInst: ArffJsonInstancesSource): WekaInternalClassifier = {
+    def builtClassifier(mappedInst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition, classifierConfig: () => WekaInternalClassifier): WekaInternalClassifier = {
         val instances = {
             val classAttribute = (inst: ArffJsonInstance) => if(targetClassDef(inst.categories)) "yes" else "no"
             val arffJsonInst = new ArffJsonInstances(mappedInst, List(Pair(new NominalArffJsonAttribute("target_class", List("no", "yes")), classAttribute)))
@@ -40,7 +40,9 @@ abstract class WekaClassifier(@transient trainBase: ArffJsonInstancesSource, tar
         
         classifier
     }
-    
+}
+
+class WekaClassifier(val wekaClassifier: WekaInternalClassifier, val trainBaseCD: Option[ContentDescription], targetClassDef: TargetClassDefinition, parent: Option[Learner]) extends Classifier(trainBaseCD, targetClassDef, parent) {
     def calculateClassifications(mappedInst: ArffJsonInstancesSource) = {
         val arffJsonInstances = {
             val classAttribute = (inst: ArffJsonInstance) => if(targetClassDef(inst.categories)) "yes" else "no"
@@ -53,7 +55,7 @@ abstract class WekaClassifier(@transient trainBase: ArffJsonInstancesSource, tar
             val instance = arffJsonInstances.instances.instance(i)
             val arffJsonInstance = arffJsonInstances.arffJsonInstance(i)
             
-            val possForYes = classifier.distributionForInstance(instance)(1) // get possibility for "yes"
+            val possForYes = wekaClassifier.distributionForInstance(instance)(1) // get possibility for "yes"
             //val possForYes = classifier.classifyInstance(instance)
             //println(possForYes)
             
@@ -63,8 +65,30 @@ abstract class WekaClassifier(@transient trainBase: ArffJsonInstancesSource, tar
     }
     
     def save(outFile: File) {
-        common.ObjectToFile.writeObjectToFile(this, outFile)
+        val objToSave = Array[Any](
+            wekaClassifier,
+            trainBaseCD,
+            targetClassDef,
+            None // parent
+        )
+        
+        common.ObjectToFile.writeObjectToFile(objToSave, outFile)
     }
     
     override def toString = "WekaClassifier(trainBase: " + trainBaseContentDescription + ", targetClassDef: " + targetClassDef + ")"
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -24,15 +24,39 @@ object InstancesMappings {
         if(base.contentDescription == target) {
             base
         } else {
-            val instances = if(target.file.exists) Some(ArffJsonInstancesSource(target))
+            val instances = if(target.file.exists) {
+                try {
+                	Some(ArffJsonInstancesSource(target))
+                } catch {
+                    case _ => {
+                        if(!target.file.delete) {
+                            throw new RuntimeException(target.file + " is invalid but could not be deleted")
+                        } else {
+                            None
+                        }
+                    }
+                }}
                 else None
-                
             if(instances.isDefined) {
                 instances.get
             } else if(base.contentDescription.set != target.set) {
                 def findFirstExistingFileInNewSet(formatHistory: List[FilterFactory]): ArffJsonInstancesSource with ContentDescribable = {
                     val testContentDescription = target.withFilterFactories(formatHistory) 
-                    if(testContentDescription.file.exists) ArffJsonInstancesSource(testContentDescription)
+                    if(testContentDescription.file.exists) {
+                        try {
+                            ArffJsonInstancesSource(testContentDescription)
+                        } catch {
+                            case _ => if(formatHistory.size > 0) {
+                                if(!testContentDescription.file.delete) {
+		                            throw new RuntimeException(testContentDescription.file + " is invalid but could not be deleted")
+		                        } else {
+		                            findFirstExistingFileInNewSet(formatHistory.dropRight(1))
+		                        }
+                            } else {
+                                throw new RuntimeException("No appropriate file found to jump between sets " + base.contentDescription.set + " and " + target.set)
+                            }
+                        }
+                    }
                     else if(formatHistory.size > 0) findFirstExistingFileInNewSet(formatHistory.dropRight(1))
                     else throw new RuntimeException("No appropriate file found to jump between sets " + base.contentDescription.set + " and " + target.set)
                 }
@@ -53,20 +77,34 @@ object InstancesMappings {
                 }
                 
                 val currentFilterFactory = target.formatHistory.last
-                val filterFile = filterPath / (target.formatHistory.map(_.historyAppendix).mkString("_") + "_filter")
+                val filterFile = filterPath / (
+                    target.toTrain.dropLastFilterFactory.formatHistory.map(_.historyAppendix).mkString("_") + "__" + 
+                    target.formatHistory.map(_.historyAppendix).mkString("_")
+                )
                 
                 val _filter = currentFilterFactory match {
                     case storable: StorableFilterFactory => {
-                        if(Filter.serializeFilters && filterFile.exists) {
-                            println("load: " + filterFile)
-                            storable.load(filterFile)
-                        } else {
+                        def trainFilter() = {
                             val trainBase = apply(base, target.toTrain.dropLastFilterFactory, targetClassDef, learner)
                             println("mappings - trainBaseSize: " + trainBase.size)
                             println("train " + storable.historyAppendix + " filter with " + trainBase.contentDescription)
                             val filter = storable(trainBase)
                             filter.save(filterFile)
                             filter
+                        }
+                        
+                        if(Filter.serializeFilters && filterFile.exists) {
+                            println("load: " + filterFile)
+                            try {
+                            	storable.load(filterFile)
+                            } catch {
+                                case _ => {
+                                	filterFile.delete()
+                                	trainFilter()
+                                }
+                            }
+                        } else {
+                            trainFilter()
                         }
                     }
                     case filterFactory: FilterFactory => {

@@ -16,6 +16,10 @@ object ContentDescription {
     case object TrainSet extends Set {
         override def filenameAppendix = "train"
     }
+    
+    case object TuningSet extends Set {
+        override def filenameAppendix = "tuning"
+    }
 }
 
 case class ContentDescription(val base: String, val set: ContentDescription.Set, val formatHistory: List[FilterFactory]) {
@@ -26,6 +30,7 @@ case class ContentDescription(val base: String, val set: ContentDescription.Set,
     def addFilterFactory(item: FilterFactory) = ContentDescription(base, set, formatHistory :+ item)
     def toTrain = ContentDescription(base, ContentDescription.TrainSet, formatHistory)
     def toTest = ContentDescription(base, ContentDescription.TestSet, formatHistory)
+    def toTuning = ContentDescription(base, ContentDescription.TuningSet, formatHistory)
     def toSet(set: ContentDescription.Set) = ContentDescription(base, set, formatHistory)
     def withFilterFactories(formatHistory: List[FilterFactory]) = ContentDescription(base, set, formatHistory)
     

@@ -1,6 +1,5 @@
 package script
 import parser.ArffJsonInstancesSource
-import classifier.TopClassIs
 import scala.collection.mutable
 import java.io.File
 import parser.ContentDescription

@@ -85,7 +85,12 @@ object ArffJsonInstancesSource {
         val contentDescription = cd
     }
     
-    def apply(_file: File) = new ArffJsonInstancesSource() {
+    def apply(_file: File): ArffJsonInstancesSource = new ArffJsonInstancesSource() {
+        override def file = _file
+        override def saved = true
+        override def save(file: File) = error("File cannot be saved")
+        override def save() = error("File cannot be saved")
+        
         def reader = new BufferedReader(new FileReader(file))
     
         val header: ArffJsonHeader = {
@@ -142,16 +147,17 @@ trait ArffJsonInstancesSource extends Iterable[ArffJsonInstance] {
     }
     
     def numAttributes = header.attributes.size
-    def numInstances = iterator.size
+    
+    lazy val numInstances = iterator.size
     
     def flatMap(elemFun: ArffJsonInstance => List[ArffJsonInstance], headerFun: ArffJsonHeader => ArffJsonHeader, historyAppendix: FilterFactory): ArffJsonInstancesSource with ContentDescribable = {
         this match {
             case c: ContentDescribable => {
-                val h = header
-                val it = iterator
+                val thisInst = this
+                
                 new ArffJsonInstancesSource with ContentDescribable {
                     def header = headerFun(header)
-                    def iterator = it.flatMap(elemFun)
+                    def iterator = thisInst.iterator.flatMap(elemFun)
                     val contentDescription = c.contentDescription.addFilterFactory(historyAppendix)
                 }
             }
@@ -159,22 +165,21 @@ trait ArffJsonInstancesSource extends Iterable[ArffJsonInstance] {
     }
     
     def flatMap(elemFun: ArffJsonInstance => List[ArffJsonInstance], headerFun: ArffJsonHeader => ArffJsonHeader): ArffJsonInstancesSource = {
-        def it = iterator
-        def h = header
+        val thisInst = this
         
         new ArffJsonInstancesSource {
             def header = headerFun(header)
-            def iterator = it.flatMap(elemFun)
+            def iterator = thisInst.iterator.flatMap(elemFun)
         }
     }
     
     def map(elemFun: ArffJsonInstance => ArffJsonInstance, headerFun: ArffJsonHeader => ArffJsonHeader, historyAppendix: FilterFactory): ArffJsonInstancesSource with ContentDescribable = this match {
         case co: ContentDescribable => {
-            def it = iterator
-            def h = header
+            val thisInst = this
+            
             new ArffJsonInstancesSource with ContentDescribable {
-                def header = headerFun(h)
-                def iterator = it.map(elemFun)
+                def header = headerFun(thisInst.header)
+                def iterator = thisInst.iterator.map(elemFun)
                 val contentDescription = co.contentDescription.addFilterFactory(historyAppendix)
             }
         }
@@ -183,55 +188,80 @@ trait ArffJsonInstancesSource extends Iterable[ArffJsonInstance] {
     }
     
     def map(elemFun: ArffJsonInstance => ArffJsonInstance, headerFun: ArffJsonHeader => ArffJsonHeader) = {
-        def it = iterator
-        def h = header
+        val thisInst = this
+        
         new ArffJsonInstancesSource {
-            def iterator = it.map(elemFun)
-            def header = headerFun(h)
+            def iterator = thisInst.iterator.map(elemFun)
+            def header = headerFun(thisInst.header)
         }
     }
     
     def project(ids: List[Int]): ArffJsonInstancesSource = {
-        def it = iterator
-        def h = header
+        val thisInst = this
         
         new ArffJsonInstancesSource {
-            def iterator = it.map(inst => inst.project(ids))
+            def iterator = thisInst.iterator.map(inst => inst.project(ids))
             
             val _header = new ArffJsonHeader(
-                h.relationName, 
-                ids.map(id => h.attributes(id))
+                thisInst.header.relationName, 
+                ids.map(id => thisInst.header.attributes(id))
             )
             
             def header = _header
         }
     }
+    
+    override def filter(filterFun: ArffJsonInstance => Boolean) = {
+        val thisInst = this
         
+        new ArffJsonInstancesSource {
+            def iterator = thisInst.iterator.filter(filterFun)
+            
+            def header = thisInst.header
+        }
+    } 
+    
+    def ++(inst: ArffJsonInstancesSource) = {
+        require(this.header.attributes == inst.header.attributes, "Headers do not match in concatenation")
+        
+        val thisInst = this
+        new ArffJsonInstancesSource {
+            def iterator = thisInst.iterator ++ inst.iterator
+            
+            val _header = new ArffJsonHeader(
+                thisInst.header.relationName + " ++ " + inst.header.relationName, 
+                thisInst.header.attributes
+            )
+            
+            def header = thisInst.header
+        }
+    }
+    
     def file: File = this match {
         case co: ContentDescribable => co.contentDescription.file
         case _ => throw new RuntimeException("file() cannot be called if ArffJsonInstancesSource is not ContentDescribable")
     }
     
     def save(_file: File) {
-        this match {
-            case co: ContentDescribable => {
-                if(file.exists()) {
-                    // do not save the same file you are reading from (doesn't make sence??)
-                } else {
-                    val writer = new BufferedWriter(new FileWriter(file))
-                    writer.write(header.toJson + "\n")
-                
-                    for(inst <- iterator) {
-                        writer.write(inst.toJson + "\n")
-                    }
-                    writer.close()
-                }
+        if(_file.exists()) {
+            // do not save the same file you are reading from (doesn't make sence??)
+        } else {
+            val writer = new BufferedWriter(new FileWriter(_file))
+            writer.write(header.toJson + "\n")
+        
+            for(inst <- iterator) {
+                writer.write(inst.toJson + "\n")
             }
-            case _ => throw new RuntimeException("file(File) cannot be called if ArffJsonInstancesSource is not ContentDescribable")
+            writer.close()
         }
     }
     
-    def save(): Unit = save(file)
+    def save() {
+        this match {
+            case co: ContentDescribable => save(file)
+            case _ => throw new RuntimeException("file() cannot be called if ArffJsonInstancesSource is not ContentDescribable")
+        }
+    }
     
     def saved() = this match {
         case co: ContentDescribable => file.exists()

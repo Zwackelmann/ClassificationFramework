@@ -27,9 +27,17 @@ object TrainSetSelection {
         if(!targetFile.exists) {
             trainSetSelectionDef match {
                 case FixedTrainSetSelection(numTargetInst, numOtherInst) => {
-                    val (groupFun, targetGroup) = targetClassDef match {
-                        case topClassIs: TopClassIs => ((l: List[String]) => l.map(_.substring(0, 2)).distinct, topClassIs.targetClass)
-                    }
+                    val categoryIs = targetClassDef.asInstanceOf[CategoryIs]
+                    
+                    val groupFun = (if(categoryIs.targetLevel == 1) {
+                        ((l: List[String]) => l.map(_.substring(0, 2)).distinct)
+                    } else if(categoryIs.targetLevel == 2) {
+                        ((l: List[String]) => l.map(_.substring(0, 3)).distinct)
+                    } else if(categoryIs.targetLevel == 3) {
+                        ((l: List[String]) => l.map(_.substring(0, 5)).distinct)
+                    } else {
+                        error("")
+                    })
                     
                     println("collecting instances data... ")
                     val totalInstByGroup = {
@@ -97,11 +105,15 @@ object TrainSetSelection {
                     println("total instances for training: " + numTrainingInst)
                 }
                 
-                case BalancedTrainSetSelection => {
+                case BalancedTrainSetSelection(maxInst) => {
                     val (targetInst, otherInst) = source.filter(preFilter).partition(i => targetClassDef(i.categories))
                     val (numTargetInst, numOtherInst) = (targetInst.size, otherInst.size)
                     
-                    val targetSize = math.min(numTargetInst, numOtherInst)
+                    val targetSize = {
+                        val tmp = math.min(numTargetInst, numOtherInst)
+                        if(maxInst.isDefined) math.min(maxInst.get, tmp)
+                        else tmp
+                    }
                     
                     val instancesIterator = targetInst.iterator.filter(
                             i => math.random < (targetSize.toDouble/numTargetInst)
@@ -115,6 +127,127 @@ object TrainSetSelection {
                         writer.write(inst.toJson + "\n")
                     }
                     writer.close()
+                }
+                
+                case MaxForEachSet(maxPositives, maxNegatives) => {
+                    val (positives, negatives) = source.filter(preFilter).partition(i => targetClassDef(i.categories))
+                    val (numPositives, numNegatives) = (positives.size, negatives.size)
+                    
+                    val positivesIterator = 
+                        if(!maxPositives.isDefined) positives.iterator
+                        else positives.iterator.filter(i => math.random < (maxPositives.get.toDouble/numPositives))
+                    
+                    val negativesIterator = 
+                        if(!maxNegatives.isDefined) negatives.iterator
+                        else negatives.iterator.filter(i => math.random < (maxNegatives.get.toDouble/numNegatives))
+                        
+                    val instancesIterator = positivesIterator ++ negativesIterator
+                    
+                    val writer = new BufferedWriter(new FileWriter(targetFile))
+                    writer.write(source.header.toJson + "\n")
+                    for(inst <- instancesIterator) {
+                        writer.write(inst.toJson + "\n")
+                    }
+                    writer.close()
+                }
+                
+                case PrioritizeMainClass(targetNumInstances) => {
+                    val minimumRateNegatives = 0.25
+                    val cat = targetClassDef.asInstanceOf[CategoryIs]
+                    val parentCategory = cat.parent
+                    val catSubstring = cat.targetLevel match {
+                        case 1 => (s: String) => s.substring(0, 2)
+                        case 2 => (s: String) => s.substring(0, 3)
+                        case 3 => (s: String) => s
+                    }	
+                    
+                    val (numPositivesMainClass, numPositivesSecondaryClass, numNegatives) = (
+                        ((0, 0, 0) /: source)((currentTuple, currentInstance) => {
+                            if(currentInstance.categories.isEmpty) (currentTuple._1, currentTuple._2, currentTuple._3)
+                            else if(targetClassDef(List(currentInstance.categories(0)))) (currentTuple._1 + 1, currentTuple._2, currentTuple._3)
+                            else if(targetClassDef(currentInstance.categories)) (currentTuple._1, currentTuple._2 + 1, currentTuple._3)
+                            else (currentTuple._1, currentTuple._2, currentTuple._3 + 1)
+                        })
+                    )
+                    
+                    val (negativesDistribution, numNegativeCategories) = {
+                        val map = new mutable.HashMap[String, Int]() {
+                            override def default(key: String) = 0
+                        }
+                        
+                        for(inst <- source.filter(i => !targetClassDef(i.categories)); cat <- inst.categories.filter(c => parentCategory(List(c))).map(c => catSubstring(c)).distinct) {
+                            map(cat) += 1
+                        }
+                        
+                        (map.toMap, map.toList.size)
+                    }
+                    
+                    println((numPositivesMainClass, numPositivesSecondaryClass, numNegatives))
+                    val (targetNumPositivesMainClass, targetNumPositivesSecondaryClass, targetNumNegatives) = {
+                        if(numPositivesMainClass < (1-minimumRateNegatives)*targetNumInstances) {
+                            // take all positivesMainClass
+                            if(numPositivesMainClass + numPositivesSecondaryClass < (1-minimumRateNegatives)*targetNumInstances) {
+                                // take all positives
+                                if(numPositivesMainClass + numPositivesSecondaryClass + numNegatives < targetNumInstances) {
+                                    // take all instances
+                                    (numPositivesMainClass, numPositivesSecondaryClass, numNegatives)
+                                } else {
+                                    // take all positives and fill with negatives
+                                    (numPositivesMainClass, numPositivesSecondaryClass, targetNumInstances - (numPositivesMainClass + numPositivesSecondaryClass))
+                                }
+                            } else {
+                                // take all positivesMainClass and some positivesSecondaryClass
+                                val sec = ((1-minimumRateNegatives) * targetNumInstances).toInt - numPositivesMainClass
+                                if(numPositivesMainClass + sec + numNegatives < targetNumInstances) {
+                                    (numPositivesMainClass, sec, numNegatives)
+                                } else {
+                                    (numPositivesMainClass, sec, targetNumInstances - (numPositivesMainClass + sec))
+                                }
+                            }
+                        } else {
+                            val main = ((1-minimumRateNegatives) * targetNumInstances).toInt
+                            if(main + numNegatives < targetNumInstances) {
+                                (main, 0, numNegatives)
+                            } else {
+                                (main, 0, targetNumInstances - main)
+                            }
+                        }
+                    }
+                    
+                    var i = 0
+                    var j = 0
+                    var k = 0
+                    
+                    val targetNumPerNegativeCategory = if(numNegativeCategories != 0) targetNumNegatives / numNegativeCategories else 0
+                    
+                    println("target: " + targetNumPerNegativeCategory)
+                    
+                    def propForNegatives(categories: List[String]) = {
+                        categories.filter(c => parentCategory(List(c))).map(c => (targetNumPerNegativeCategory.toDouble / negativesDistribution(catSubstring(c)))).max
+                    }
+                    
+                    val instancesIterator = if((numPositivesMainClass, numPositivesSecondaryClass, numNegatives) == (targetNumPositivesMainClass, targetNumPositivesSecondaryClass, targetNumNegatives)) {
+                        source.iterator
+                    } else { 
+                        source.iterator.filter(inst => {
+                            if(inst.categories.isEmpty) { 
+                                false 
+                            } else { 
+	                            if(targetClassDef(List(inst.categories(0)))) (if(math.random < (targetNumPositivesMainClass.toDouble / numPositivesMainClass)) {i += 1; true} else false)
+	                            else if(targetClassDef(inst.categories)) (if(math.random < (targetNumPositivesSecondaryClass.toDouble / numPositivesSecondaryClass)) {j += 1; true} else false)
+	                            else (if(math.random < propForNegatives(inst.categories)) {k += 1; true} else false)
+	                        }
+                        })
+                    }
+                    
+                    val writer = new BufferedWriter(new FileWriter(targetFile))
+                    writer.write(source.header.toJson + "\n")
+                    for(inst <- instancesIterator) {
+                        writer.write(inst.toJson + "\n")
+                    }
+                    writer.close()
+                    
+                    println("written instances: " + (i, j, k))
                 }
                 
                 case NoTrainSetSelection => throw new RuntimeException("Should not occur")

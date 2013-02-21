@@ -14,3 +14,13 @@ object Time {
         t
     }
 }
+
+object ReturnTime {
+    def apply[T](fun: => T) = {
+        val time = System.currentTimeMillis()
+        val t = fun
+        val time2 = System.currentTimeMillis();
+        
+        (t, (time2 - time))
+    }
+}

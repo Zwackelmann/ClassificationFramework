@@ -3,7 +3,6 @@ import parser.ArffJsonInstancesSource
 import filter.feature_scoreing.OddsRatio
 import classifier.TargetClassDefinition
 import java.io.File
-import classifier.TopClassIs
 import parser.History
 
 object OddsRatioFilter {

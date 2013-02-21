@@ -8,6 +8,8 @@ import common.Common.FileConversion._
 import java.io.BufferedWriter
 import java.io.FileWriter
 import classifier.Classifier
+import java.io.BufferedReader
+import java.io.FileReader
 
 object RawClassification {
     class Category(val name: String) {
@@ -34,7 +36,14 @@ object RawClassification {
         new RawClassification(a.get(0).asInstanceOf[String], classification, trueClass)
     }
     
-    def fromFile(file: File) = file.lines.map(RawClassification(_)).toList
+    def fromFile(file: File) = {
+        val br = new BufferedReader(new FileReader(file))
+        
+        def lines: Stream[String] = (br.readLine()) #:: lines
+        val result = lines.takeWhile(_ != null).map(RawClassification(_)).toList
+        br.close()
+        result
+    }
     
     def save(classifications: Iterable[RawClassification], file: File) {
         val w = new BufferedWriter(new FileWriter(file))
@@ -44,52 +53,47 @@ object RawClassification {
         w.close
     }
     
-    def toBreakEven1(classifications: List[RawClassification]) = {
-        val meanPositives = {
-            val x = classifications.filter(c => c.realValue > 0).map(c => c.classification) 
-            x.reduceLeft(_ + _) / x.size
-        }
+    def findBestThresholdWithPrecison(classifications: List[RawClassification], targetPrecision: Double) = {
+        val sortedClassifications = classifications.sortWith((c1, c2) => c1.classification > c2.classification)
         
-        val meanNegatives = {
-            val x = classifications.filter(c => c.realValue < 0).map(c => c.classification) 
-            x.reduceLeft(_ + _) / x.size
-        }
+        var truePositives = 0
+        var falsePositives = 0
+        var trueNegatives = sortedClassifications.count(c => c.realValue < 0)
+        var falseNegatives = sortedClassifications.count(c => c.realValue >= 0)
         
-        if(meanPositives <= meanNegatives) {
-            // classifications cannot be normalized properly, because the center of classifions for positive examples is lower or equal to the center of classifications for negative examples
-            None
-        }
+        def prec(truePos: Int, falsePos: Int, trueNeg: Int, falseNeg: Int) = truePos.toDouble / (truePos + falsePos)
+        def rec(truePos: Int, falsePos: Int, trueNeg: Int, falseNeg: Int) = truePos.toDouble / (truePos + falseNeg)
+        def fmeasure(prec: Double, rec: Double, alpha: Double) = ((1 + alpha) * prec * rec) / ((alpha * prec) + rec) 
         
-        var stepWidth = math.abs(meanPositives - meanNegatives) / 2
-        var t = (meanPositives + meanNegatives) / 2
-        var opt: Pair[Double, Double] = null
+        // if no suitable threshold can be found because the precision cannot be reached, fall back to maximum threshold
+        val fallbackThreshold = sortedClassifications(0).classification
         
-        for(i <- 0 until 100) {
-            val p = Classifier.precision(classifications.view.map(c => new RawClassification(c.id, c.classification - t, c.realValue)), 0)
-            val r = Classifier.recall(classifications.view.map(c => new RawClassification(c.id, c.classification - t, c.realValue)), 0)
-            
-            // set new max if f-measure is better
-            if(!math.abs(p-r).isNaN() && (opt == null || opt._2 > math.abs(p-r))) {
-                opt = (t, math.abs(p-r))
-            }
-            
-            if(p > r || p.isNaN()) {
-                t = t - stepWidth
+        val bestn = sortedClassifications.flatMap(cl => {
+            if(cl.realValue >= 0) {
+                truePositives += 1
+                falseNegatives -= 1
             } else {
-                t = t + stepWidth
+                falsePositives += 1
+                trueNegatives -= 1
             }
             
-            stepWidth = stepWidth / 1.5
-        }
+            val p = prec(truePositives, falsePositives, trueNegatives, falseNegatives)
+            val r = rec(truePositives, falsePositives, trueNegatives, falseNegatives)
+            
+            if(p.isNaN() || r.isNaN()) List()
+            else List(Tuple3(cl.classification, p, r))
+        })
         
-        t = opt._1
+        val candidates = bestn.filter(_._2 >= targetPrecision)
         
-        Some(classifications.map(c => {
-            new RawClassification(c.id, (c.classification - t), c.realValue)
-        }))
+        val bestThreshold = 
+            if(candidates.isEmpty) fallbackThreshold
+            else candidates.maxBy(_._3)._1
+        
+        bestThreshold
     }
     
-    def toBreakEven2(classifications: List[RawClassification], alpha: Double) = {
+    def findBestThreshold1(classifications: List[RawClassification], alpha: Double) = {
         val sortedClassifications = classifications.sortWith((c1, c2) => c1.classification > c2.classification)
         
         var truePositives = 0
@@ -120,25 +124,132 @@ object RawClassification {
         
         val best = bestn.maxBy(_._4)
         
+        (best._1, best._4)
+    }
+    
+    def findBestThreshold2(classifications: List[RawClassification], alpha: Double) = {
+        val meanPositives = {
+            val x = classifications.filter(c => c.realValue > 0).map(c => c.classification) 
+            x.reduceLeft(_ + _) / x.size
+        }
+        
+        val meanNegatives = {
+            val x = classifications.filter(c => c.realValue < 0).map(c => c.classification) 
+            x.reduceLeft(_ + _) / x.size
+        }
+        
+        if(meanPositives <= meanNegatives) {
+            // classifications cannot be normalized properly, because the center of classifions for positive examples is lower or equal to the center of classifications for negative examples
+            None
+        }
+        
+        var stepWidth = math.abs(meanPositives - meanNegatives) / 2
+        var t = (meanPositives + meanNegatives) / 2
+        var opt: Pair[Double, Double] = null
+        
+        def fmeasure(prec: Double, rec: Double, alpha: Double) = ((1 + alpha) * prec * rec) / ((alpha * prec) + rec) 
+        
+        for(i <- 0 until 100) {
+            val p = Classifier.precision(classifications.view.map(c => new RawClassification(c.id, c.classification - t, c.realValue)), 0)
+            val r = Classifier.recall(classifications.view.map(c => new RawClassification(c.id, c.classification - t, c.realValue)), 0)
+            
+            // set new max if f-measure is better
+            if(!fmeasure(p, r, alpha).isNaN() && (opt == null || opt._2 > fmeasure(p, r, alpha))) {
+                opt = (t, fmeasure(p, r, alpha))
+            }
+            
+            if(p > r || p.isNaN()) {
+                t = t - stepWidth
+            } else {
+                t = t + stepWidth
+            }
+            
+            stepWidth = stepWidth / 1.5
+        }
+        
+        if(opt == null) {
+            (0.0, 0.0)
+        } else {
+        	opt
+        }
+    }
+    
+    def findBestThreshold(classifications: List[RawClassification], alpha: Double = 1.0) = {
+        val (t1, f1) = findBestThreshold1(classifications, alpha)
+        val (t2, f2) = try {findBestThreshold2(classifications, alpha)} catch { case _ => (0.0, 0.0)}
+        
+        if(f2.isNaN() || f1 > f2) t1
+        else t2
+    }
+    
+    def toBreakEven(classifications: List[RawClassification], alpha: Double = 1.0) = {
+        val t = try {
+            findBestThreshold(classifications, alpha)
+        } catch {
+            case _ => 0.0
+        }
+        
         classifications.map(c => {
-            new RawClassification(c.id, (c.classification - best._1), c.realValue)
+            new RawClassification(c.id, (c.classification - t), c.realValue)
         })
     }
     
-    def toBreakEven(classificatinos: List[RawClassification], alpha: Double = 1.0) = {
-        val br1 = toBreakEven1(classificatinos)
-        val br2 = toBreakEven2(classificatinos, alpha)
+    def withThreshold(classifications: List[RawClassification], t: Double) = classifications.map(c => {
+        new RawClassification(c.id, (c.classification - t), c.realValue)
+    })
+    
+    def precRecGraphPoints(classifications: List[RawClassification]) = {
+        val sorted = classifications.sortWith((c1, c2) => c1.classification > c2.classification)
+        val numPositives = classifications.count(c => c.realValue >= 0)
         
-        val f1 = if(br1 == None) 0.0 else Classifier.fMeasure(br1.get, alpha)
-        val f2 = Classifier.fMeasure(br2, alpha)
+		// println(sorted.take(500).mkString("\n"))
+        val l = (List[Int]() /: sorted)((old, elem) => {
+            if(elem.realValue >= 0.0) {
+                if(old.isEmpty) List(1)
+                else (old.head + 1) :: old
+            } else {
+                if(old.isEmpty) List(0)
+                else old.head :: old 
+            } 
+        }).reverse
         
-        if((f2.isNaN() || f1 > f2) && br1.isDefined) br1.get
-        else br2
+        for(percentPoints <- (1 to 100)) yield {
+            val targetNumDocs = math.max(((numPositives * percentPoints) / 100), 1)
+            val docsToTake = l.takeWhile(_ <= targetNumDocs).size
+            
+            ((percentPoints.toDouble / 100), (targetNumDocs.toDouble / docsToTake))
+        }
     }
     
-    def normalize(classifications: Iterable[RawClassification]) = {
-        val avgAbsClassification = classifications.map(c => math.abs(c.classification)).reduceLeft(_ + _) / classifications.size
-        classifications.map(c => new RawClassification(c.id, c.classification / avgAbsClassification, c.realValue))
+    def microPrecRecGraphPoints(classifications: List[RawClassification]) = {
+        val sorted = classifications.sortWith((c1, c2) => c1.classification > c2.classification)
+        val numPositives = classifications.count(c => c.realValue >= 0)
+        
+        val l = (List[Int]() /: sorted.iterator)((old, elem) => {
+            if(elem.realValue >= 0.0) {
+                if(old.isEmpty) List(1)
+                else (old.head + 1) :: old
+            } else {
+                if(old.isEmpty) List(0)
+                else old.head :: old 
+            } 
+        }).reverse
+        
+        for(percentPoints <- (1 to 100)) yield {
+            val targetNumDocs = ((numPositives * percentPoints) / 100)
+            val docsToTake = if(targetNumDocs == 0) 0 else l.takeWhile(_ <= targetNumDocs).size
+            
+            (targetNumDocs, (docsToTake - targetNumDocs))
+        }
+    }
+    
+    def normalize(classifications: List[RawClassification]) = {
+        if(classifications.isEmpty) classifications
+        else {
+            val avgAbsClassification = classifications.map(c => math.abs(c.classification)).reduceLeft(_ + _) / classifications.size
+			
+            classifications.map(c => new RawClassification(c.id, c.classification / avgAbsClassification, c.realValue))
+        }
     }
     
     def adaBoost(pool: List[Iterable[RawClassification]]) = {
@@ -188,7 +299,7 @@ object RawClassification {
         })
     }
     
-    def weightedSum(pool: List[Iterable[RawClassification]]) = {
+    def weightedSum(pool: List[List[RawClassification]]) = {
         val resultsAndWeights = pool.map(
             res => {
                 val results = normalize(res)
@@ -223,11 +334,11 @@ object RawClassification {
         val finalRes = pool.transpose.map(classificationList => {
             require(classificationList.forall(c => c.id == classificationList(0).id))
             new RawClassification(
-                classificationList(0).id, 
+                classificationList.head.id, 
                 ((0.0 /: (classificationList zip normedWeights))(
-                    (old, clw) => old + clw._1.classification * clw._2
+                    (old, clw) => old + (if(clw._1.classification.isNaN) 0 else clw._1.classification) * clw._2
                 )),
-                classificationList(0).realValue)
+                classificationList.head.realValue)
         })
         
         finalRes
@@ -255,7 +366,69 @@ class RawClassification(val id: String, val classification: Double, val realValu
     def toJson = "[\"" + id + "\", " + classification + ", " + realValue + "]"
 }
 
+object CertaintyToThresholdFunction {
+    def apply(classifications: List[RawClassification]) = {
+        val sorted = classifications.sortWith((c1, c2) => c1.classification > c2.classification)
+        val numPositives = classifications.count(c => c.realValue >= 0)
+        
+        val l = (List[Pair[Int, Double]]() /: sorted.iterator)((old, elem) => {
+            if(elem.realValue >= 0.0) {
+                if(old.isEmpty) List((1, elem.classification))
+                else ((old.head._1 + 1, elem.classification)) :: old
+            } else {
+                if(old.isEmpty) List((0, elem.classification))
+                else (old.head._1, elem.classification) :: old
+            } 
+        }).reverse.toIndexedSeq
+        
+        val points = for(percentPoints <- (1 to 100)) yield {
+            val targetNumDocs = math.max(((numPositives * percentPoints) / 100), 1)
+            val docsToTake = l.takeWhile(_._1 <= targetNumDocs).size
+            val threshold = l(docsToTake - 1)._2
+            
+            ((targetNumDocs.toDouble / docsToTake), (percentPoints.toDouble / 100), threshold)
+        }
+        
+        val skylinePoints = (for(p <- points) yield {
+            if(points.exists(p2 => p2._1 > p._1 && p2._2 > p._2)) List()
+            else List(p)
+        }).flatten.toList
+        
+        new CertaintyToThresholdFunction(skylinePoints.map(p => (p._1, p._3)))
+    }
+}
 
+class CertaintyToThresholdFunction(val precThdPairs: List[Pair[Double, Double]]) {
+    def certaintyToThreshold(targetPrecision: Double) = if(precThdPairs.size >= 2) {
+        val nearestPoints = precThdPairs
+        		.sortWith((pr1, pr2) => math.abs(pr1._1 - targetPrecision) < math.abs(pr2._1 - targetPrecision))
+        		.take(2)
+        
+        val point1 = nearestPoints.minBy(_._1)
+        val point2 = nearestPoints.maxBy(_._1)
+        
+        val m = (point2._2 - point1._2) / (point2._1 - point1._1)
+        val b = (point1._2 - m*point1._1)
+        m*targetPrecision + b
+    } else {
+        Double.MaxValue
+    }
+    
+    def classificationToCertainty(classificationValue: Double) = if(precThdPairs.size >= 2) {
+        val nearestPoints = precThdPairs
+        		.sortWith((pr1, pr2) => math.abs(pr1._2 - classificationValue) < math.abs(pr2._2 - classificationValue))
+        		.take(2)
+        
+        val point1 = nearestPoints.minBy(_._2)
+        val point2 = nearestPoints.maxBy(_._2)
+        
+        val m = (point2._1 - point1._1) / (point2._2 - point1._2)
+        val b = (point1._1 - m*point1._2)
+        m*classificationValue + b
+    } else {
+        0.0
+    }
+}
 
 
 

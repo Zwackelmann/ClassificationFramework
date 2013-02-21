@@ -96,6 +96,32 @@ abstract class ArffJsonInstance(val id: String, val categories: List[String]) ex
             
         }
     }
+    def union(ids: List[Int], unionFun: (Any, Any) => Any) = {
+        val idsWithIndex = ids.zip(0 until ids.length).toMap
+        
+        this match {
+            case sp: SparseArffJsonInstance => new SparseArffJsonInstance(
+                sp.id, 
+                sp.categories, 
+                Map(0 -> (sp.dataMap
+                    .filter(m => ids.contains(m._1))
+                    .map(kv => kv._2)
+                    .reduceLeft(unionFun))),
+                ids.length
+            )
+            case de: DenseArffJsonInstance => 
+                new DenseArffJsonInstance(
+                    de.id,
+                    de.categories,
+                    List(de.dataList
+                        .zip(0 until de.dataList.size)
+                        .filter(l => ids.contains(l._2))
+                        .map(_._1)
+                        .reduceLeft(unionFun))
+                )
+            
+        }
+    }
 }
 
 
