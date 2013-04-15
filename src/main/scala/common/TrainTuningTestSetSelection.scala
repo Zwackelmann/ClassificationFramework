@@ -7,121 +7,134 @@ import format.arff_json.ArffJsonInstance
 import format.arff_json.ArffJsonInstancesFileWriter
 import format.arff_json.ArffJsonHeader
 import parser.ContentDescription
+import parser.ContentDescribable
+import FileManager.Protocol._
 
 object TrainTuningTestSetSelection {
-    def getSets(minDocumentsPerCategoryThreshold: Int, name: String, base: ArffJsonInstancesSource) = {
-        val metaDataFile = new File("data/" + name + ".metadata")
-        
-        if(metaDataFile.exists()) {
-	        val metaData = ObjectToFile.readObjectFromFile(metaDataFile).asInstanceOf[Map[String, Any]]
-	        
-	        val trainSetCD = metaData("trainSetCD").asInstanceOf[ContentDescription]
-	        val tuningSetCD = metaData("tuningSetCD").asInstanceOf[ContentDescription]
-	        val testSetCD = metaData("testSetCD").asInstanceOf[ContentDescription]
-	        val consideredCategories = metaData("consideredCategories").asInstanceOf[Set[String]]
-	        
-	        ((ArffJsonInstancesSource(trainSetCD), ArffJsonInstancesSource(tuningSetCD), ArffJsonInstancesSource(testSetCD)), consideredCategories)
-        } else {
-	        val countPerCat = {
-	            val map = new mutable.HashMap[String, Int]() {
-	                override def default(key: String) = 0
-	            }
-	            
-	            for(inst <- base; cat <- inst.categories.filter(c => c.substring(2, 3) != "-" && c.substring(3, 5).toLowerCase != "xx")) {
-	                map(cat) += 1
-	            }
-	            
-	            map.toMap
-	        }
-	        
-	        val consideredCategories = countPerCat.filter(xy => xy._2 >= minDocumentsPerCategoryThreshold).map(_._1).toSet
-	        
-	        if(!(
-	            ContentDescription(name, ContentDescription.TrainSet, List()).file.exists() && 
-	            ContentDescription(name, ContentDescription.TuningSet, List()).file.exists() && 
-	            ContentDescription(name, ContentDescription.TestSet, List()).file.exists()
-	        )) {
-	            val numInstances = base.numInstances
-	            
-	            val mean = {
-	                val x = consideredCategories.map(c => countPerCat(c))
-	                x.sum.toDouble / x.size
-	            }
-	            
-	            val stdDev = {
-	                val x = consideredCategories.map(c => math.abs(countPerCat(c) - mean))
-	                x.sum.toDouble / x.size
-	            }
-	            
-	            class InstancesSet(val targetRate: Double, val header: ArffJsonHeader, val contentDescription: ContentDescription) {
-	                val writer = new ArffJsonInstancesFileWriter(header, contentDescription)
-	                val stat = new mutable.HashMap[String, Int] {
-	                    override def default(key: String) = 0
-	                }
-	                
-	                def numInst = writer.numInstances
-	                
-	                def +=(inst: ArffJsonInstance) {
-	                    writer += inst
-	                    for(cat <- inst.categories) {
-	                        stat(cat) += 1
-	                    }
-	                }
-	                
-	                def close() {
-	                    writer.close
-	                }
-	            }
-	            
-	            val instancesSets = List(
-	                new InstancesSet(0.6, base.header, ContentDescription(name, ContentDescription.TrainSet, List())),
-	                new InstancesSet(0.2, base.header, ContentDescription(name, ContentDescription.TuningSet, List())),
-	                new InstancesSet(0.2, base.header, ContentDescription(name, ContentDescription.TestSet, List()))
-	            )
-	            
-	            for(inst <- base) {
-	                val probabilityDist = {
-	                    val probabilityDistByTotal = probabilityDistribution(instancesSets.map(_.numInst), instancesSets.map(_.targetRate))
-	                
-	                    val x = (for(cat <- inst.categories.filter(c => consideredCategories.contains(c))) yield {
-	                        val probabilityDistByCat = probabilityDistribution(instancesSets.map(_.stat(cat)), instancesSets.map(_.targetRate))
-	                        val rar = rareness(countPerCat(cat), mean, stdDev)
-	                        (probabilityDistByCat, rar)
-	                    })
-	                    
-	                    if(x.isEmpty) {
-	                        probabilityDistByTotal
-	                    } else {
-	                        val (probabilityDistByCat, rar) = x.maxBy(_._2)
-	                        (probabilityDistByCat.map(_ * rar) zip probabilityDistByTotal.map(_ * (1-rar))).map(x => x._1 + x._2)
-	                    }
-	                }
-	                
-	                val t = target(probabilityDist)
-	                
-	                instancesSets(t) += inst
-	            }
-	            
-	            
-	            for(set <- instancesSets) {
-	                set.close
-	            }
-	        }
-	        
-	        val trainSetCD = ContentDescription(name, ContentDescription.TrainSet, List())
-	        val tuningSetCD = ContentDescription(name, ContentDescription.TuningSet, List())
-	        val testSetCD = ContentDescription(name, ContentDescription.TestSet, List())
-	        
-	        val metaData = Map[String, Any](
-	            "trainSetCD" -> trainSetCD,
-	            "tuningSetCD" -> tuningSetCD,
-	            "testSetCD" -> testSetCD,
-	            "consideredCategories" -> consideredCategories
-	        )
-	        
-	        ObjectToFile.writeObjectToFile(metaData, metaDataFile)
-	        ((ArffJsonInstancesSource(trainSetCD), ArffJsonInstancesSource(tuningSetCD), ArffJsonInstancesSource(testSetCD)), consideredCategories)
+    def calcCatDistribution(base: ArffJsonInstancesSource) = {
+        val map = new mutable.HashMap[String, Int]() {
+            override def default(key: String) = 0
         }
+        
+        for(inst <- base; cat <- inst.categories.filter(c => {c.substring(2, 3) != "-" && c.substring(3, 5).toLowerCase != "xx"})) {
+            map(cat) += 1
+        }
+        
+        map.toMap
+    }
+    
+    def getSets(minDocumentsPerCategoryThreshold: Int, name: String, base: ArffJsonInstancesSource, dist: Tuple3[Double, Double, Double]): ((ArffJsonInstancesSource with ContentDescribable, ArffJsonInstancesSource with ContentDescribable, ArffJsonInstancesSource with ContentDescribable), Set[String])  = {
+        val countPerCat: Map[String, Int] = base match {
+            case describableSource: ContentDescribable => {
+                val statFilename = "data/" + describableSource.contentDescription.filename + "_stat"
+                (FileManager !? FileExists(statFilename)) match {
+                    case Exists(true) => {
+                        (FileManager !? ReceiveFile(statFilename, true)) match {
+                            case AcceptReceiveFile(file) => {
+                                val arr = ObjectToFile.readObjectFromFile(file).asInstanceOf[Array[Pair[String, Int]]]
+                                arr.toMap
+                            }
+                            case FileNotExists => throw new RuntimeException("file " + statFilename + " does not exist")
+                            case Error(msg) => throw new RuntimeException(msg)
+                        }
+                    }
+                    case Exists(false) => {
+                        val map = calcCatDistribution(base)
+                        
+                        val arr: Array[Pair[String, Int]] = map.toArray
+                        (FileManager !? CreateFile(statFilename, true, ((file) => {
+                            ObjectToFile.writeObjectToFile(arr, file)
+                        })))
+                        
+                        map
+                    }
+                }
+            }
+            case _ => calcCatDistribution(base)
+        }
+        
+        val consideredCategories = countPerCat.filter(xy => xy._2 >= minDocumentsPerCategoryThreshold).map(_._1).toSet
+        if(!(
+            ContentDescription(name, ContentDescription.TrainSet, List()).fileExists && 
+            ContentDescription(name, ContentDescription.TuningSet, List()).fileExists && 
+            ContentDescription(name, ContentDescription.TestSet, List()).fileExists
+        )) {
+            if(common.Common.verbosity >= 1) println("generate new test train tuning sets")
+            
+            val numInstances = base.numInstances
+            
+            val mean = {
+                val x = consideredCategories.map(c => countPerCat(c))
+                x.sum.toDouble / x.size
+            }
+            
+            val stdDev = {
+                val x = consideredCategories.map(c => math.abs(countPerCat(c) - mean))
+                x.sum.toDouble / x.size
+            }
+            
+            class InstancesSet(val targetRate: Double, val header: ArffJsonHeader, val contentDescription: ContentDescription) {
+                val writer = new ArffJsonInstancesFileWriter(header, contentDescription)
+                val stat = new mutable.HashMap[String, Int] {
+                    override def default(key: String) = 0
+                }
+                
+                def numInst = writer.numInstances
+                
+                def +=(inst: ArffJsonInstance) {
+                    writer += inst
+                    for(cat <- inst.categories) {
+                        stat(cat) += 1
+                    }
+                }
+                
+                def close() {
+                    writer.close
+                }
+            }
+            
+            val instancesSets = List(
+                new InstancesSet(dist._1, base.header, ContentDescription(name, ContentDescription.TrainSet, List())),
+                new InstancesSet(dist._2, base.header, ContentDescription(name, ContentDescription.TuningSet, List())),
+                new InstancesSet(dist._3, base.header, ContentDescription(name, ContentDescription.TestSet, List()))
+            )
+            
+            for(inst <- base) {
+                val probabilityDist = {
+                    val probabilityDistByTotal = probabilityDistribution(instancesSets.map(_.numInst), instancesSets.map(_.targetRate))
+                
+                    val x = (for(cat <- inst.categories.filter(c => consideredCategories.contains(c))) yield {
+                        val probabilityDistByCat = probabilityDistribution(instancesSets.map(_.stat(cat)), instancesSets.map(_.targetRate))
+                        val rar = rareness(countPerCat(cat), mean, stdDev)
+                        (probabilityDistByCat, rar)
+                    })
+                    
+                    if(x.isEmpty) {
+                        probabilityDistByTotal
+                    } else {
+                        val (probabilityDistByCat, rar) = x.maxBy(_._2)
+                        (probabilityDistByCat.map(_ * rar) zip probabilityDistByTotal.map(_ * (1-rar))).map(x => x._1 + x._2)
+                    }
+                }
+                
+                val t = target(probabilityDist)
+                
+                instancesSets(t) += inst
+            }
+            
+            
+            for(set <- instancesSets) {
+                set.close
+            }
+        } else {
+            if(common.Common.verbosity >= 2) println("keep already created test tuning train sets")
+        }
+        
+        val trainSetCD = ContentDescription(name, ContentDescription.TrainSet, List())
+        val tuningSetCD = ContentDescription(name, ContentDescription.TuningSet, List())
+        val testSetCD = ContentDescription(name, ContentDescription.TestSet, List())
+        
+        ((ArffJsonInstancesSource(trainSetCD).get, ArffJsonInstancesSource(tuningSetCD).get, ArffJsonInstancesSource(testSetCD).get), consideredCategories)
     } 
     
     def target(probabiltyDistribution: Iterable[Double]) = {

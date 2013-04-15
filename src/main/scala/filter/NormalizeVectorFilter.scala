@@ -4,7 +4,7 @@ import format.arff_json.SparseArffJsonInstance
 import java.io.File
 import format.arff_json.ArffJsonInstance
 import parser.History
-import classifier.TargetClassDefinition
+import classifier.CategoryIs
 
 object NormalizeVectorFilter {
     def apply() = {
@@ -16,7 +16,7 @@ object NormalizeVectorFilter {
     
     @serializable
     trait Appendix extends History {
-        abstract override def apply(targetClassDef: TargetClassDefinition) = super.apply(targetClassDef) :+ NormalizeVectorFilter()
+        abstract override def apply(categoryIs: CategoryIs) = super.apply(categoryIs) :+ NormalizeVectorFilter()
     }
 }
 

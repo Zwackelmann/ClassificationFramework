@@ -17,7 +17,7 @@ object Test4 {
 			"data/results/min100_proj-tit_sel-000____vec-conf9-min-1_tf-idf_norm_svm_all_000B___min100-test_proj-tit_sel-000____vec-conf9-min-1_tf-idf_norm.json",
 			"data/results/min100_proj-jour_sel-000____vec-conf2-min-1_or-300.0-0-000B___svm_all_000B___min100-test_proj-jour_sel-000____vec-conf2-min-1_or-300.0-0-000B__.json", 
 			"data/results/min100_proj-ter_sel-000____vec-conf2-min-1_or-300.0-0-000B___svm_all_000B___min100-test_proj-ter_sel-000____vec-conf2-min-1_or-300.0-0-000B__.json"
-		).map(filename => RawClassification.fromFile(new File(filename)))
+		).map(filename => RawClassification.fromFile(filename))
 		
 		val res2 = res map (r => {
 		    val t = RawClassification.findBestThreshold(r)

@@ -2,7 +2,7 @@ package filter.feature_scoreing
 import parser.ArffJsonInstancesSource
 import scala.collection.mutable.HashMap
 import scala.collection.mutable.HashSet
-import classifier.TargetClassDefinition
+import classifier.CategoryIs
 
 object FeatureScoreing {
     trait CatCondition
@@ -48,11 +48,11 @@ object FeatureScoreing {
 }
 
 @serializable
-abstract class FeatureScoreing(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition) {
+abstract class FeatureScoreing(inst: ArffJsonInstancesSource, categoryIs: CategoryIs) {
     import FeatureScoreing._
     
     def score(t: Int): Double
-    def rankedFeatureList(): List[Pair[Int, Double]] = termSet.filter(t => !score(t).isNaN).map(t => Pair(t, score(t))).toList.sort((x1, x2) => x1._2 > x2._2)
+    def rankedFeatureList(): List[Pair[Int, Double]] = termSet.filter(t => !score(t).isNaN).map(t => Pair(t, score(t))).toList.sortWith((x1, x2) => x1._2 > x2._2)
     
     val (numTargetInst, numOtherInst, termMapTarget, termMapOther, termSet) = {
         var numTargetInst = 0
@@ -67,13 +67,14 @@ abstract class FeatureScoreing(inst: ArffJsonInstancesSource, targetClassDef: Ta
             for((key, value) <- inst.sparseData) {
                 termSet += key
             }
-
-            if(targetClassDef(inst.categories)) {
+            
+            val isTarget = categoryIs(inst.categories)
+            if(isTarget.isDefined && isTarget.get) {
                 numTargetInst += 1
                 for((key, value) <- inst.sparseData) {
                     termMapTarget(key) += 1
                 }
-            } else {
+            } else if(isTarget.isDefined){
                 numOtherInst += 1
                 for((key, value) <- inst.sparseData) {
                     termMapOther(key) += 1

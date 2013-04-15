@@ -17,11 +17,11 @@ import common.Common.FileConversion._
 import scala.collection.mutable.HashMap
 import parser.ArffJsonInstancesSource
 import parser.History
-import classifier.TargetClassDefinition
+import classifier.CategoryIs
 
 object VectorFromDictFilter {
     def apply(confName: String, minOcc: Int = 3) = {
-        new StorableFilterFactory {
+        new FilterFactory with Loadable[VectorFromDictFilter] {
             def apply(trainBase: ArffJsonInstancesSource) = {
                 val filter = confName match {
                     case "conf1" => new Conf1(minOcc)
@@ -39,14 +39,11 @@ object VectorFromDictFilter {
                     case "conf13" => new Conf13(minOcc)
                     case _ => throw new RuntimeException("Unknown VectorFromDictFilter configuration: " + confName)
                 }
-                println("build dict... trainBaseSize: " + trainBase.size)
                 filter.buildDict(trainBase)
                 filter
             }
             
             val historyAppendix = "vec-" + confName + "-min-" + minOcc
-            
-            def load(file: File) = common.ObjectToFile.readObjectFromFile(file).asInstanceOf[VectorFromDictFilter]
         }
     }
     
@@ -54,7 +51,7 @@ object VectorFromDictFilter {
     trait Appendix extends History {
         val confName: String
         val minOcc: Int = 3
-        abstract override def apply(targetClassDef: TargetClassDefinition) = super.apply(targetClassDef) :+ VectorFromDictFilter(confName, minOcc)
+        abstract override def apply(categoryIs: CategoryIs) = super.apply(categoryIs) :+ VectorFromDictFilter(confName, minOcc)
     }
     
     class Conf1(minOcc: Int) extends VectorFromDictFilter {
@@ -550,7 +547,7 @@ object VectorFromDictFilter {
                     try {
                         readFormula(text)
                     } catch {
-                        case _ => 
+                        case _: Throwable => 
                             val char = new TokenChar('$')
                             text.deleteCharAt(0)
                             char
@@ -559,7 +556,7 @@ object VectorFromDictFilter {
                     try {
                         readReference(text)
                     } catch {
-                        case _ => 
+                        case _: Throwable => 
                             val char = new TokenChar('[')
                             text.deleteCharAt(0)
                             char
@@ -597,7 +594,7 @@ object VectorFromDictFilter {
             
             for((g, i) <- tokenList.zipWithIndex) {
                 g match {
-                    case BracedText(text) if text.size > 1 && text.forall(c => c.isUpperCase) && i>text.size => 
+                    case BracedText(text) if text.size > 1 && text.forall(c => c.isUpper) && i>text.size => 
                         val candidates = tokenList.slice(i-text.size, i)
                         if(
                             candidates.forall(c => c.isInstanceOf[TokenString]) && 
@@ -629,7 +626,7 @@ object VectorFromDictFilter {
             for((g, i) <- tokenGroups.zipWithIndex) {
                 if(g.tokens.size == 1) {
                     g.tokens.head match {
-                        case BracedText(text) if text.size > 1 && text.forall(c => c.isUpperCase) && i>text.size => 
+                        case BracedText(text) if text.size > 1 && text.forall(c => c.isUpper) && i>text.size => 
                             val candidates = tokenGroups.slice(i-text.size, i)
                             if(
                                 candidates.forall(c => c.tokens.size == 1 && c.tokens.head.isInstanceOf[TokenString]) && 

@@ -2,47 +2,48 @@ package classifier
 import parser.ArffJsonInstancesSource
 import model.RawClassification
 import common.Path
-import common.ForgetableMap
 import scala.collection.mutable.HashMap
 import format.arff_json.ArffJsonInstance
 import parser.ContentDescription
 import java.io.File
 import parser.ContentDescribable
+import common.FileManager
+import FileManager.Protocol._
 
 object Classifier {
     val serializeClassifications = true
     
     import RawClassification._
     
-    def performanceValues(classifications: Iterable[RawClassification], certaintyThreshold: Double = 0.0) = {
+    def performanceValues(classifications: Iterable[RawClassification]) = {
         Map(
             TRUE_POSITIVE -> List(),
             FALSE_POSITIVE -> List(),
             TRUE_NEGATIVE -> List(),
             FALSE_NEGATIVE -> List()
-        ) ++ classifications.toList/*.filter(c => math.abs(c.classification) >= certaintyThreshold)*/.groupBy(_.cat)
+        ) ++ classifications.toList.groupBy(_.cat)
     }
     
-    def precision(classifications: Iterable[RawClassification], certaintyThreshold: Double = 0.0) = {
-        val filteredAndGrouped = performanceValues(classifications, certaintyThreshold)
+    def precision(classifications: Iterable[RawClassification]) = {
+        val filteredAndGrouped = performanceValues(classifications)
         filteredAndGrouped(TRUE_POSITIVE).size.toDouble / (filteredAndGrouped(TRUE_POSITIVE).size + filteredAndGrouped(FALSE_POSITIVE).size)
     }
     
-    def recall(classifications: Iterable[RawClassification], certaintyThreshold: Double = 0.0) = {
-        val filteredAndGrouped = performanceValues(classifications, certaintyThreshold)
+    def recall(classifications: Iterable[RawClassification]) = {
+        val filteredAndGrouped = performanceValues(classifications)
         filteredAndGrouped(TRUE_POSITIVE).size.toDouble / (filteredAndGrouped(TRUE_POSITIVE).size + filteredAndGrouped(FALSE_NEGATIVE).size)
     }
     
     def fMeasure(classifications: Iterable[RawClassification], alpha: Double, certaintyThreshold: Double = 0.0) = {
-        val prec = precision(classifications, certaintyThreshold)
-        val rec = recall(classifications, certaintyThreshold)
+        val prec = precision(classifications)
+        val rec = recall(classifications)
         
         ((1 + alpha) * prec * rec) / ((alpha * prec) + rec)
     }
         
     def report(classifications: Iterable[RawClassification], certaintyThreshold: Double = 0.0) {
-        println("precision: %.5f".format(precision(classifications, certaintyThreshold)))
-        println("recall: %.5f".format(recall(classifications, certaintyThreshold)))
+        println("precision: %.5f".format(precision(classifications)))
+        println("recall: %.5f".format(recall(classifications)))
         
         val certainties = classifications.map(c => math.abs(c.classification))
         // println("mean certainty: " + (if(certainties.size != 0) mean(certainties) else "NaN")) 
@@ -63,42 +64,43 @@ object Classifier {
 }
 
 @serializable
-abstract class Classifier(val trainBaseContentDescription: Option[ContentDescription], targetClassDef: TargetClassDefinition, parent: Option[Learner]) {
+abstract class Classifier(val trainBaseContentDescription: Option[ContentDescription], val targetClassDef: CategoryIs, val parent: Option[Learner]) {
     import RawClassification._
     
-    def this(trainBase: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition, parent: Option[Learner]) = this(
+    def this(trainBase: ArffJsonInstancesSource, categoryIs: CategoryIs, parent: Option[Learner]) = this(
         (trainBase match {
             case co: ContentDescribable => Some(co.contentDescription)
             case _ => None
         }),
-        targetClassDef,
+        categoryIs,
         parent
     )
     
     def calculateClassifications(inst: ArffJsonInstancesSource): Iterable[RawClassification]
-    def save(file: File)
+    def save(fullFilename: String)
     
-    def filenameAppendix = trainBaseContentDescription.map(cd => Learner.classifierPath(cd, targetClassDef, parent))
+    // def filenameAppendix = trainBaseContentDescription.map(cd => Learner.classifierFilename(cd, targetClassDef, parent))
     
     def classifications(inst: ArffJsonInstancesSource) = parent match {
         case Some(parent) if Classifier.serializeClassifications => {
-            val resultsFilePath = for(
+            val classificationsFullFilename = for(
                 trainCd <- trainBaseContentDescription;
                 instCd <- (inst match {
                     case co: ContentDescribable => Some(co.contentDescription)
                     case _ => None
                 })
-            ) yield Learner.resultsFilePath(trainCd, targetClassDef, Some(parent), instCd)
+            ) yield Learner.classificationsFullFilename(trainCd, targetClassDef, Some(parent), instCd)
             
-            if(resultsFilePath.isDefined && resultsFilePath.get.exists) {
-                RawClassification.fromFile(resultsFilePath.get)
-            } else {
-                val results = calculateClassifications(inst)
-                
-                if(resultsFilePath.isDefined) {
-                    RawClassification.save(results, resultsFilePath.get)
+            (FileManager !? ReceiveFile(classificationsFullFilename.get, true)) match {
+                case AcceptReceiveFile(file) => {
+                    RawClassification.fromFile(classificationsFullFilename.get)
                 }
-                results.toList
+                case FileNotExists => {
+                    val results = calculateClassifications(inst)
+                    RawClassification.save(results, classificationsFullFilename.get)
+                    results.toList
+                }
+                case Error(msg) => throw new RuntimeException(msg)
             }
         }
         case None => calculateClassifications(inst).toList

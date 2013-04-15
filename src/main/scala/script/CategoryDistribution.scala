@@ -5,7 +5,7 @@ import scala.collection.mutable
 
 object CategoryDistribution {
     def main(args: Array[String]) {
-        val corpus = ArffJsonInstancesSource(new File("data/arffJson/corpus.json"))
+        val corpus = ArffJsonInstancesSource("data/arffJson/corpus.json")
         
         val countPerCat = {
             val map = new mutable.HashMap[String, Int] {

@@ -30,8 +30,8 @@ import java.io.FileWriter
 
 object FindLabels {
 	def main(args: Array[String]) {
-	    val corpus = ArffJsonInstancesSource(new File("data/arffJson/corpus.json"))
-	    val ((trainSet, tuningSet, testSet), c) = TrainTuningTestSetSelection.getSets(100, "min100", corpus)
+	    val corpus = ArffJsonInstancesSource("data/arffJson/corpus.json")
+	    val ((trainSet, tuningSet, testSet), c) = TrainTuningTestSetSelection.getSets(100, "min100", corpus, (0.7, 0.3, 0.0))
 	    
         val allThirdLevelClasses = ApplyFinalClassifier.findConsideredCategories(corpus, 3, 100).map(cStr => CategoryIs(cStr))
         val allSecondLevelClasses = ApplyFinalClassifier.findConsideredCategories(corpus, 2, 100).map(cStr => CategoryIs.topAndMiddle(cStr.substring(0, 2), cStr.substring(2, 3)))
@@ -39,7 +39,22 @@ object FindLabels {
         
         val minCertaintyThreshold = 0.5
         
-        for(firstLevelCat <- allFirstLevelClasses.filter(_.topClass.get.toInt >= 34)) yield {
+        for(firstLevelCat <- allFirstLevelClasses) yield {
+            val learner = SvmLightJniLearner(
+                new History() 
+                        with AbstractProjection
+                        with CategorySelectionFilter.Appendix
+                        with VectorFromDictFilter.Appendix
+                        with TfIdfFilter.Appendix
+                        with NormalizeVectorFilter.Appendix { 
+                    
+                    val selection = firstLevelCat.parent
+                    val confName = "conf9"
+                    override val minOcc = 3
+                },
+                NoTrainSetSelection
+            )
+            
             println("calc first level classifiers for category " + firstLevelCat)
             val firstLevelResults = classificationRun(firstLevelCat, trainSet, tuningSet, testSet, minCertaintyThreshold)
             println("firstLevelPositives: " + (firstLevelResults match { case Some(x) => x._1.size.toString case None => "no results"}))
@@ -121,7 +136,10 @@ object FindLabels {
         
         val (testClassifications, certaintyFunction) = if(coofficients.isDefined) {
             val thres = thresholds.map(_.get)
-            val classifications = List.map3(classifiers, meta, thresholds)((c, m, t) => {
+            val classifications = ((classifiers zip meta) zip thresholds).map(x => {
+                val c = x._1._1
+                val m = x._1._2
+                val t = x._2
                 
                 val mappedTestSet = m.get("learner") match {
                     case "svm" => mapSetForSVM(testSet, cat, m.get("proj"))
@@ -239,12 +257,12 @@ object FindLabels {
         val classifiersMeta = learnerListMeta.map(learnerMeta => {
             val classifier = Some(learnerMeta._1.classifier(trainSet, cat))
             
-            val trainResults = learnerMeta._1.classifications(tuningSet, cat)
+            val trainResults = learnerMeta._1.classifications(trainSet, tuningSet, cat)
             val bestFMeasureThreshold = RawClassification.findBestThreshold(trainResults)
             val thresholdedTuningResults = RawClassification.normalize(RawClassification.withThreshold(trainResults, bestFMeasureThreshold))
             val certaintyFunction = CertaintyToThresholdFunction(thresholdedTuningResults)
             
-            if(classifier != None) Some((classifier.get, learnerMeta._2, thresholdedTuningResults, bestFMeasureThreshold, certaintyFunction))
+            if(!classifier.isDefined) Some((classifier.get, learnerMeta._2, thresholdedTuningResults, bestFMeasureThreshold, certaintyFunction))
             else None
         })
         

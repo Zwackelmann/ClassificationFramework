@@ -9,8 +9,8 @@ object CalcCategoryDistribution {
     def main(args: Array[String]) {
         val catCounter = new HashMap[Int, Int]
         
-        val trainset = ArffJsonInstancesSource(new File("data/arffJson/final-train.json"), ContentDescription("final", ContentDescription.TrainSet, List()))
-        val testset = ArffJsonInstancesSource(new File("data/arffJson/final-test.json"), ContentDescription("final", ContentDescription.TestSet, List()))
+        val trainset = ArffJsonInstancesSource("data/arffJson/final-train.json", ContentDescription("final", ContentDescription.TrainSet, List()))
+        val testset = ArffJsonInstancesSource("data/arffJson/final-test.json", ContentDescription("final", ContentDescription.TestSet, List()))
         
         for(inst <- trainset; cat <- inst.categories.map(c => c.substring(0, 2).toInt)) {
             catCounter(cat) = catCounter.getOrElse(cat, 0) + 1

@@ -3,7 +3,7 @@ import parser.ArffJsonInstancesSource
 import format.arff_json.ArffJsonHeader
 import format.arff_json.ArffJsonInstance
 import parser.History
-import classifier.TargetClassDefinition
+import classifier.CategoryIs
 
 object ProjectionFilter {
     def apply(ids: List[Int], projectionDesc: String) = new FilterFactory {
@@ -17,7 +17,7 @@ object ProjectionFilter {
     @serializable
     trait Appendix extends History {
         val projection: Pair[Int, String]
-        abstract override def apply(targetClassDef: TargetClassDefinition) = super.apply(targetClassDef) :+ ProjectionFilter(List(projection._1), projection._2)
+        abstract override def apply(categoryIs: CategoryIs) = super.apply(categoryIs) :+ ProjectionFilter(List(projection._1), projection._2)
     }
 }
 
@@ -37,3 +37,12 @@ class ProjectionFilter(ids: List[Int]) extends GlobalFilter {
         )
     }
 }
+
+
+
+
+
+
+
+
+

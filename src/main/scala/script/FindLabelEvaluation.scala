@@ -9,7 +9,7 @@ import parser.ArffJsonInstancesSource
 
 object FindLabelEvaluation {
 	def main(args: Array[String]) {
-	    val corpus = ArffJsonInstancesSource(new File("data/arffJson/min100-test.json"))
+	    val corpus = ArffJsonInstancesSource("data/arffJson/min100-test.json")
 	    val trueLabels = corpus.map(inst => inst.id -> inst.categories.filter(c => c.substring(2, 3) != "-" && c.substring(3, 5) != "xx")).toMap
 	    
 	    val dist = {
@@ -32,7 +32,6 @@ object FindLabelEvaluation {
 	        val percentageGivenLabels = for(file <- labelFolder.listFiles()) yield {
 	            val category = file.getName().substring(0, 2)
 	            val calcLabels = file.lines.map(l => Label.fromLine(l)).toList.groupBy(_.id).toMap
-	            
 			    val foo = for(t1 <- 0.5 to 1.0 by 0.1; t2 <- 0.5 to 1.0 by 0.1; t3 <- 0.5 to 1.0 by 0.1) yield {
 			    	(t1, t2, t3, evaluate(calcLabels, trueLabels, (label => label.certainty(0) > t1 && label.certainty(1) > t2 && label.certainty(2) > t3), dist(category)))
 			    }
@@ -44,10 +43,7 @@ object FindLabelEvaluation {
 	        }
 	        
 			println(percentageGivenLabels.sum / percentageGivenLabels.size)
-	        
 			println(percentageGivenLabels.sortWith((a, b) => a > b).take(10).mkString("\n"))
-			
-			
 	    // }
 	    
 	    
@@ -71,7 +67,7 @@ object FindLabelEvaluation {
 	        
 	        // println(labels + " <<>> " + c)
 	        // tp fp fn #labels
-	        ((c intersect labels).size, (labels -- c).size, (c -- labels).size, labels.size)
+	        ((c intersect labels).size, (labels diff c).size, (c diff labels).size, labels.size)
 	    }
 	    
 		val totalTP = evalData.map(_._1).sum

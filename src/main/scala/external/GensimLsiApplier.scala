@@ -6,15 +6,17 @@ import parser.ArffJsonInstancesSource
 import common.Path._
 import common.Path
 import filter.GlobalFilter
-import filter.StorableFilterFactory
 import parser.ContentDescribable
 import parser.History
-import classifier.TargetClassDefinition
+import classifier.CategoryIs
+import filter.FilterFactory
+import filter.Loadable
+import common.FileManager
 
 object GensimLsiFilter {
     val modelPath = new Path("lsi_models") !
     
-    def apply(numDims: Int) = new StorableFilterFactory {
+    def apply(numDims: Int) = new FilterFactory with Loadable[GensimLsiFilter] {
         def apply(trainBase: ArffJsonInstancesSource) = {
             val filter = new GensimLsiFilter(numDims)
             filter.builtModel(trainBase)
@@ -22,14 +24,12 @@ object GensimLsiFilter {
         }
         
         val historyAppendix = "lsi-" + numDims
-        
-        def load(file: File) = common.ObjectToFile.readObjectFromFile(file).asInstanceOf[GensimLsiFilter]
     }
     
     @serializable
     trait Appendix extends History {
         val numLsiDims: Int
-        abstract override def apply(targetClassDef: TargetClassDefinition) = super.apply(targetClassDef) :+ GensimLsiFilter(numLsiDims)
+        abstract override def apply(categoryIs: CategoryIs) = super.apply(categoryIs) :+ GensimLsiFilter(numLsiDims)
     }
 }
 
@@ -43,7 +43,7 @@ class GensimLsiFilter(val numTopics: Int) extends GlobalFilter {
             source match {
                 case co: ContentDescribable =>
                     if(!source.saved) source.save
-                    (source.file, false)
+                    (FileManager.fullFilename2SafeFile(source.fullFilename), false)
                 case _ => 
                     (new File("tmpBeforeLsi"), true)
             }
@@ -67,7 +67,7 @@ class GensimLsiFilter(val numTopics: Int) extends GlobalFilter {
             }
         } catch {
             case io: IOException => System.err.println("An IOException occured: " + io.getMessage())
-            case e => throw e
+            case e: Throwable => throw e
         } finally {
             if(isTmpInstancesFile) {
                 intancesFile.delete()
@@ -80,7 +80,7 @@ class GensimLsiFilter(val numTopics: Int) extends GlobalFilter {
             inst match {
                 case co: ContentDescribable =>
                     if(!inst.saved) inst.save
-                    (inst.file, false)
+                    (FileManager.fullFilename2SafeFile(inst.fullFilename), false)
                 case _ => 
                     (new File("tmpBeforeLsi"), true)
             }
@@ -92,7 +92,7 @@ class GensimLsiFilter(val numTopics: Int) extends GlobalFilter {
         
         val cmd = List(
                 command,
-                inst.file.getCanonicalPath(),
+                intancesFile.getCanonicalPath(),
                 modelFile.getCanonicalPath(),
                 resultFile.getCanonicalPath()
         ).mkString(" ")
@@ -106,13 +106,13 @@ class GensimLsiFilter(val numTopics: Int) extends GlobalFilter {
             }
         } catch {
             case io: IOException => System.err.println("An IOException occured: " + io.getMessage())
-            case e => throw e
+            case e: Throwable => throw e
         } finally {
             if(isTmpInstancesFile) {
                 intancesFile.delete()
             }
         }
         
-        ArffJsonInstancesSource(resultFile)
+        ArffJsonInstancesSource(resultFile.getCanonicalPath)
     }
 }

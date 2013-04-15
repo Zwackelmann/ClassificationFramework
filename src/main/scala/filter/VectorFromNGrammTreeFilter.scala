@@ -15,7 +15,7 @@ object VectorFromNGramTreeFilter {
     import filter.VectorFromDictFilter.AdvancedTokenizer._
     
     def apply(confName: String, nGrams: Iterable[List[String]]): FilterFactory = {
-        new StorableFilterFactory {
+        new FilterFactory with Loadable[VectorFromNGramTreeFilter] {
             def apply(trainBase: ArffJsonInstancesSource) = {
                 val filter = confName match {
                     case "conf1" => new Conf1(nGrams)
@@ -25,7 +25,6 @@ object VectorFromNGramTreeFilter {
             }
             
             val historyAppendix = "vec-ng-" + confName
-            def load(file: File) = common.ObjectToFile.readObjectFromFile(file).asInstanceOf[VectorFromNGramTreeFilter]
         }
     }
     

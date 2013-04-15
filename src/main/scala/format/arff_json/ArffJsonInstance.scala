@@ -7,6 +7,7 @@ import common.Common.jsonToScalaType
 import weka.core.Attribute
 import scala.collection.JavaConversions._
 import parser.ArffJsonParser
+import net.sf.json.JSONSerializer
 
 object ArffJsonInstance {
     def dataToJson(d: Any): String = d match {
@@ -19,7 +20,6 @@ object ArffJsonInstance {
     
     def apply(json: JSONArray, numAttributes: Int) = {
         val metadata = jsonToScalaType(json.get(0)).asInstanceOf[List[Any]]
-        
         json.get(1) match {
             case arr: JSONArray => {
                 val data = jsonToScalaType(arr).asInstanceOf[List[Any]]
@@ -33,8 +33,12 @@ object ArffJsonInstance {
         }
     }
     
+    def stringToArffJsonInstance(str: String, header: ArffJsonHeader) = {
+        apply(JSONSerializer.toJSON(str).asInstanceOf[JSONArray], header.attributes.size)
+    }
+    
     def apply(json: JSONArray, header: ArffJsonHeader): ArffJsonInstance = apply(json, header.attributes.size)
-    def apply(line: String, header: ArffJsonHeader) = ArffJsonParser.parse(line, header.attributes.length)
+    def apply(line: String, header: ArffJsonHeader): ArffJsonInstance = ArffJsonParser.parse(line, header.attributes.length)
     
     def apply(id: String, categories: List[String], data: List[Any], sparse: Boolean) = {
         if(!sparse) {

@@ -31,8 +31,13 @@ object ArffJson2Joachims {
         out.close
     }
     
-    def apply(inst: ArffJsonInstancesSource, outFile: File, classFun: List[String] => Boolean) {
-        convert(inst, outFile, ((mscClasses) => if(classFun(mscClasses)) "+1" else "-1"))
+    def apply(inst: ArffJsonInstancesSource, outFile: File, classFun: List[String] => Option[Boolean]) {
+        convert(inst, outFile, (
+            (mscClasses) => {
+                val isTarget = classFun(mscClasses)
+                (if(isTarget.isDefined && isTarget.get) "+1" else if(isTarget.get) "-1" else "0")
+            }
+        ))
     }
     
     def apply(inst: ArffJsonInstancesSource, outFile: File) {

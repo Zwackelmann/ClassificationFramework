@@ -1,17 +1,18 @@
 package common
 
-
 import net.sf.json.JSONObject
 import net.sf.json.JSONArray
 import scala.collection.JavaConversions._
 import java.io.BufferedReader
 import java.io.File
 import java.io.FileReader
+import java.security.MessageDigest
 
 /**
  * A collection of some commonly used functions
  */
 object Common {
+    val verbosity = 2
     /**
      * Escapes a string with special characters to prepare it to be written to a file
      */
@@ -144,6 +145,26 @@ object Common {
     
     import FileConversion._
     def topClasses = new File("data/util/top_classes.txt").lines.toList
+    
+    def hash(str: String) = {
+        val md = MessageDigest.getInstance("SHA-256")
+        md.update(str.getBytes())
+        bytesToHex(md.digest())
+    }
+    
+    val hexArray = Array('0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F')
+    def bytesToHex(bytes: Array[Byte]) = {
+        val hexChars = Array.ofDim[Char](bytes.length * 2)
+        
+        var v: Int = 0
+        for (j <- 0 until bytes.length) {
+            v = bytes(j) & 0xFF
+            hexChars(j * 2) = hexArray(v >>> 4)
+            hexChars(j * 2 + 1) = hexArray(v & 0x0F)
+        }
+        
+        new String(hexChars)
+    }
 }
 
 

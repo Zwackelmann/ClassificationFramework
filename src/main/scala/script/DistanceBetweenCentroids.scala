@@ -19,7 +19,7 @@ import scala.collection.mutable
 object DistanceBetweeenCentroids {
     def main(args: Array[String]) {
         val inst = ArffJsonInstancesSource(
-            new File("data/arffJson/final-test_projection-abstract_vector-from-dict-conf4_tf-idf_lsi-500.json"), 
+            "data/arffJson/final-test_projection-abstract_vector-from-dict-conf4_tf-idf_lsi-500.json", 
             ContentDescription("final", ContentDescription.TestSet, List())
         )
         

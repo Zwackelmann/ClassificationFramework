@@ -6,19 +6,18 @@ import java.io.File
 import format.arff_json.SparseArffJsonInstance
 import java.io.FileReader
 import parser.ArffJsonInstancesSource
-import classifier.TargetClassDefinition
+import classifier.CategoryIs
 import parser.History
 
 object TfIdfFilter {
-    def apply() = new StorableFilterFactory {
+    def apply() = new FilterFactory with Loadable[TfIdfFilter] {
         def apply(trainBase: ArffJsonInstancesSource) = new TfIdfFilter(trainBase)
         val historyAppendix = "tf-idf"
-        def load(file: File) = common.ObjectToFile.readObjectFromFile(file).asInstanceOf[TfIdfFilter]
     }
     
     @serializable
     trait Appendix extends History {
-        abstract override def apply(targetClassDef: TargetClassDefinition) = super.apply(targetClassDef) :+ TfIdfFilter()
+        abstract override def apply(categoryIs: CategoryIs) = super.apply(categoryIs) :+ TfIdfFilter()
     }
 }
 

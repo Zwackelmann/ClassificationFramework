@@ -1,8 +1,8 @@
 package filter
 import parser.ArffJsonInstancesSource
-import classifier.TargetClassDefinition
+import classifier.CategoryIs
 
 trait GlobalFilter extends Filter {
-    override def applyFilter(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition) = applyFilter(inst)
+    override def applyFilter(inst: ArffJsonInstancesSource, categoryIs: CategoryIs) = applyFilter(inst)
     def applyFilter(inst: ArffJsonInstancesSource): ArffJsonInstancesSource
 }

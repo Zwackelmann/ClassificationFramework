@@ -22,7 +22,7 @@ object Test2 {
             
             for((g, i) <- tokenList.zipWithIndex) {
                 g match {
-                    case BracedText(text) if text.size > 1 && text.forall(c => c.isUpperCase) && i>text.size => 
+                    case BracedText(text) if text.size > 1 && text.forall(c => c.isUpper) && i>text.size => 
                         val candidates = tokenList.slice(i-text.size, i)
                         if(
                             candidates.forall(c => c.isInstanceOf[TokenString]) && 

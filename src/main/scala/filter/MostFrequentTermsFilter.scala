@@ -9,19 +9,18 @@ import java.io.FileReader
 import parser.ArffJsonInstancesSource
 import parser.ArffJsonInstancesSource
 import parser.History
-import classifier.TargetClassDefinition
+import classifier.CategoryIs
 
 object MostFrequentTermsFilter {
-    def apply(numFeatures: Int) = new StorableFilterFactory {
+    def apply(numFeatures: Int) = new FilterFactory with Loadable[MostFrequentTermsFilter] {
         def apply(trainBase: ArffJsonInstancesSource) = new MostFrequentTermsFilter(trainBase, numFeatures)
         val historyAppendix = "mf-" + numFeatures
-        def load(file: File) = common.ObjectToFile.readObjectFromFile(file).asInstanceOf[MostFrequentTermsFilter]
     }
     
     @serializable
     trait Appendix extends History {
         val numMostFrequentFeatures: Int
-        abstract override def apply(targetClassDef: TargetClassDefinition) = super.apply(targetClassDef) :+ MostFrequentTermsFilter(numMostFrequentFeatures)
+        abstract override def apply(categoryIs: CategoryIs) = super.apply(categoryIs) :+ MostFrequentTermsFilter(numMostFrequentFeatures)
     }
 }
 

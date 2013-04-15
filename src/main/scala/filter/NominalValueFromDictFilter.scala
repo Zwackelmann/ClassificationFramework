@@ -18,9 +18,9 @@ import format.arff_json.NominalArffJsonAttribute
 import parser.ArffJsonInstancesSource
 
 object NominalValueFromDictFilter {
-    def apply(confName: String): FilterFactory = {
+    def apply(confName: String): FilterFactory with Loadable[_ <: Filter] = {
         confName match {
-            case "conf1" => new StorableFilterFactory() {
+            case "conf1" => new FilterFactory() with Loadable[NominalValueFromDictFilter] {
                 def apply(trainBase: ArffJsonInstancesSource) = {
                     val filter = new Conf1
                     filter.expandDict(trainBase)
@@ -28,8 +28,6 @@ object NominalValueFromDictFilter {
                 }
                 
                 val historyAppendix = "nominal-value-from-dict-" + confName
-                
-                def load(file: File) = common.ObjectToFile.readObjectFromFile(file).asInstanceOf[NominalValueFromDictFilter]
             }
             case _ => throw new RuntimeException("Unknown NominalValueFromDictFilter configuaration name: " + confName)
         }

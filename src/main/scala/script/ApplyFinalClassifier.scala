@@ -1,7 +1,6 @@
 package script
 import classifier.Learner
 import parser.ArffJsonInstancesSource
-import classifier.TargetClassDefinition
 import common.Path.classifierPath
 import classifier.Classifier
 import external.JoachimsSVMClassifier
@@ -52,84 +51,89 @@ import weka.attributeSelection.ConsistencySubsetEval
 import javax.swing.filechooser.FileNameExtensionFilter
 import filter.ConcatFilter
 import classifier.SvmLightJniClassifier
+import common.Dispatcher
+import common.Dispatcher.{Task, Quit}
 
 object ApplyFinalClassifier {
     def main(args: Array[String]) {
         println("calculate statistics...")
-        val corpus = ArffJsonInstancesSource(new File("data/arffJson/corpus.json"))
+        val corpus = ArffJsonInstancesSource("data/arffJson/corpus.json")
+        val ((trainSet, tuningSet, testSet), c) = TrainTuningTestSetSelection.getSets(100, "min100", corpus, (0.7, 0.3, 0.0))
+        val consideredCategories = c map (c => CategoryIs(c))
         
-        // (0,4) => tbdb, (1,4) => tbdb, (2,4) => desctop, (3, 4) => split
-        val workPackageDef = (0,1)
-        val numThreads = 1
-        val layer = 1
+        val layer = 3
         val minOccurences = 100
-        
-        val ((trainSet, tuningSet, testSet), c) = TrainTuningTestSetSelection.getSets(100, "min100", corpus)
-        
-        // find out all msc classes from the data
-        /*val inst = ArffJsonInstancesSource(new File("data/arffJson/corpus.json"))
-        val allThirdLevelClasses = (Set[String]() /: inst.iterator.map(i => i.categories))((old, cats) => old ++ cats).map(CategoryIs(_)).filter(c => c.targetLevel == 3)
-        val allSecondLevelClasses = allThirdLevelClasses.map(_.parent)
-        val allFirstLevelClasses = allSecondLevelClasses.map(_.parent)*/
-        
-        val (categoryCondition, categorySubstring, categoryMapping, independenceGrouping) = layer match {
-            case 1 => (
-                ((c: String) => true), 
-                ((c: String) => c.substring(0, 2)), 
-                ((c: String) => CategoryIs.top(c.substring(0, 2))),
-                ((c: String) => c.substring(0, 2))
-            )
-            
-            case 2 => (
-                ((c: String) => c.substring(2, 3) != "-"), 
-                ((c: String) => c.substring(0, 3)), 
-                ((c: String) => CategoryIs.topAndMiddle(c.substring(0, 2), c.substring(2, 3))),
-                ((c: String) => c.substring(0, 2))
-            )
-            
-            case 3 => (
-                ((c: String) => c.substring(2, 3) != "-" && c.substring(3, 5).toLowerCase != "xx"), 
-                ((c: String) => c), 
-                ((c: String) => CategoryIs.topMiddleAndLeave(c.substring(0, 2), c.substring(2, 3), c.substring(3, 5))),
-                ((c: String) => c.substring(0, 3))
-            )
-        } 
-        
-        val consideredCategories = findConsideredCategories(corpus, categoryCondition, categorySubstring, minOccurences)
-        // val consideredCategories = InconsistentCategories.cats2
-        val workPackage = consideredCategories.zipWithIndex.filter(_._2 % workPackageDef._2 == workPackageDef._1).map(_._1)
-        
-        /*val workPackageSplits = {
-            val numPackages = 7
-            (for(i <- 0 until numPackages) yield 
-                workPackage.zipWithIndex.filter(_._2 % numPackages == i).map(_._1)
-            ).toList
-        }*/
-        
-        // val workPackageForTBDB = workPackageSplits(0) ++ workPackageSplits(1) ++ workPackageSplits(2) ++ workPackageSplits(3) ++ workPackageSplits(4) 
-        // val workPacakgeForDesktop = workPackageSplits(5) ++ workPackageSplits(6)
-        
-        // val categoryGroups = splitInIndependentGroups(workPackageForTBDB, independenceGrouping, 10).map(catList => catList.map(cat => categoryMapping(cat)))
-        // val categoryGroups = splitInIndependentGroups(workPacakgeForDesktop, independenceGrouping, 4).map(catList => catList.map(cat => categoryMapping(cat)))
-        
-        val categoryGroups = splitInIndependentGroups(workPackage, independenceGrouping, numThreads).map(catList => catList.map(cat => categoryMapping(cat)))
         
         val startTime = System.currentTimeMillis()
         val evaluationDataAccumulator = new EvaluationDataAccumulator()
         
-        // mod0 auf tbdb, mod1 auf pc, mod2 auf laptop
-        // val slice = consideredCategories.toList.sortBy(c => c.filenameExtension).zipWithIndex.filter(_._2 % 4 == 2).map(_._1)
-        // val slice = allFirstLevelClasses.toList.sortBy(c => c.filenameExtension)// .zipWithIndex.filter(_._2 % 4 == 2).map(_._1)
+        def jsvmUniLearner(cat: CategoryIs, layer: Int) = SvmLightJniLearner(
+            new History() 
+                    with AbstractTitleConcat
+                    with CategorySelectionFilter.Appendix
+                    with VectorFromDictFilter.Appendix
+                    with TfIdfFilter.Appendix
+                    with NormalizeVectorFilter.Appendix { 
+                
+                val selection = cat.parent
+                val confName = "conf9"
+                override val minOcc = layer match {
+                    case 1 => 3
+                    case 2 | 3 => 1
+                    case _ => throw new RuntimeException("layer must be between 1 and 3")
+                }
+            },
+            NoTrainSetSelection
+        )
         
-        // val trainSetSelectionTestClasses = List(CategoryIs("05C20"), CategoryIs("05C31"), CategoryIs("05C45"))
+        def c45AbstractLearner(cat: CategoryIs, minWordCount: Int, orTh: Double, maxTrainSetSize: Int, numAdaBoostIterations: Int) = BoostedC45Learner(
+                new History() 
+                        with AbstractProjection
+                        with CategorySelectionFilter.Appendix
+                        with VectorFromDictFilter.Appendix
+                        with NormalizeVectorFilter.Appendix
+                        with OddsRatioFilter.Appendix { 
+                    
+                    val selection = cat.parent
+                    val confName = "conf9"
+                    override val minOcc = minWordCount
+                    val orThreshold = orTh
+                    val numWorst = 0
+                },
+                PrioritizeMainClass(maxTrainSetSize),
+                numAdaBoostIterations
+            )
         
-        val inconsitentCategoryList = new mutable.ListBuffer[String]
-        val consitentCategoryList = new mutable.ListBuffer[String]
+        val dispatcher = new Dispatcher(1)
+        dispatcher.start()
         
-        launchAsynchronous(categoryGroups) { cat => {
+        val thirdLevelClasses = consideredCategories
+        val secondLevelClasses = thirdLevelClasses.map(_.parent)
+        val firstLevelClasses = secondLevelClasses.map(_.parent)
+        
+        val targetCategories = (layer match {
+            case 1 => firstLevelClasses
+            case 2 => secondLevelClasses
+            case 3 => thirdLevelClasses
+        }).toList.sortBy(_.filenameExtension)
+        
+        for((cat, i) <- targetCategories.zipWithIndex) {
+            println("start cat " + cat.filenameExtension + "...")
+            printProgress(i, targetCategories.size)
+            
+            val learner = jsvmUniLearner(cat, layer)
+            learner.classifications(trainSet, tuningSet, cat)
+            // dispatcher !? Task(() => {
+                // jsvmTitleLearner.classifications(trainSet, tibTestSet, cat)
+            // })
+        }
+        dispatcher !? Quit
+        println("all finished")
+        
+        /*launchAsynchronous(categoryGroups) { cat => {
             val minWordCount = if(layer == 1) 3 else 1
             val orTh = if(layer == 1) 5.0 else 2.0
-            val maxTrainSetSize = 16000
+            val maxTrainSetSize = 10000
             val numAdaBoostIterations = 20
             
             /*val c45AbstractLearner = BoostedC45Learner(
@@ -149,7 +153,6 @@ object ApplyFinalClassifier {
                 PrioritizeMainClass(maxTrainSetSize),
                 numAdaBoostIterations
             )
-                
             
             val c45TitleLearner = BoostedC45Learner(
                 new History() 
@@ -216,7 +219,6 @@ object ApplyFinalClassifier {
                 PrioritizeMainClass(maxTrainSetSize),
                 numAdaBoostIterations
             )
-                
             
             val c45TitleLearner = BoostedC45LearnerNT(
                 new History() 
@@ -376,7 +378,6 @@ object ApplyFinalClassifier {
                 NoTrainSetSelection
             )
             
-            
             val jsvmAbstractLearner = SvmLightJniLearner(
                 new History() 
                         with AbstractProjection
@@ -391,6 +392,23 @@ object ApplyFinalClassifier {
                 },
                 NoTrainSetSelection
             )
+            
+            val jsvmUniLearner = SvmLightJniLearner(
+                new History() 
+                        with AbstractTitleConcat
+                        with CategorySelectionFilter.Appendix
+                        with VectorFromDictFilter.Appendix
+                        with TfIdfFilter.Appendix
+                        with NormalizeVectorFilter.Appendix { 
+                    
+                    val selection = cat.parent
+                    val confName = "conf9"
+                    override val minOcc = minWordCount
+                },
+                NoTrainSetSelection
+            )
+            
+            jsvmAbstractLearner.classifications(trainSet, testSet, cat)
             
             // check for validity
             /*val classificationsOnTest = learnerList.map(l => l.classificationsIfCached(testSet, cat))
@@ -437,8 +455,8 @@ object ApplyFinalClassifier {
 			// val learnerList = List(svmTitleConcatAbstractLearner, c45TitleConcatAbstractLearner)
 			// val learnerNames = List("svmTitleConcatAbstractLearner", "c45TitleConcatAbstractLearner")
 			
-			val classificationOnTestSet = learnerList.map(learner => (learner.classifications(testSet, cat)))
-			val classificationOnTuningSet = learnerList.map(learner => (learner.classifications(tuningSet, cat)))
+			// val classificationOnTestSet = learnerList.map(learner => (learner.classifications(trainSet, testSet, cat)))
+			// val classificationOnTuningSet = learnerList.map(learner => (learner.classifications(trainSet, tuningSet, cat)))
 			
 			/*for((c, name) <- classificationOnTestSet zip learnerNames) {
 				c match {
@@ -476,9 +494,9 @@ object ApplyFinalClassifier {
 					println("\n\n" + cat.filenameExtension + " skipped for combination\n")
 				}
 			}*/
-        }}
+        }}*/
         
-		val topK = layer match {
+		/*val topK = layer match {
 			case 1 => 10
 			case 2 => 50
 			case 3 => 200
@@ -491,7 +509,7 @@ object ApplyFinalClassifier {
         println("avg all")
         evaluationDataAccumulator.precRecGraphs(None, writer)
 		
-		writer.close()
+		writer.close()*/
     }
     
     def launchAsynchronous(jobData: Iterable[List[CategoryIs]])(job: CategoryIs => Unit) {
@@ -584,9 +602,9 @@ object ApplyFinalClassifier {
     }
     
     def performance(results: Seq[RawClassification], alpha: Double = 1.0) = {
-        val prec = Classifier.precision(results, 0)
-        val rec = Classifier.recall(results, 0)
-        val f = Classifier.fMeasure(results, alpha, 0)
+        val prec = Classifier.precision(results)
+        val rec = Classifier.recall(results)
+        val f = Classifier.fMeasure(results, alpha)
         
         def format(number: Double) = "%.4f".format(number).toString.replaceAllLiterally(",", ".")
         
@@ -595,8 +613,8 @@ object ApplyFinalClassifier {
 }
 
 object CombineClassifiers {
-    def findBestCoofficients(learners: List[Learner], tuningSet: ArffJsonInstancesSource with ContentDescribable, targetClassDefinition: TargetClassDefinition): List[Double] = {
-        val classifications = learners.map(l => RawClassification.toBreakEven(l.classifications(tuningSet, targetClassDefinition)))
+    def findBestCoofficients(learners: List[Learner], trainSet: ArffJsonInstancesSource with ContentDescribable, tuningSet: ArffJsonInstancesSource with ContentDescribable, cat: CategoryIs): List[Double] = {
+        val classifications = learners.map(l => RawClassification.toBreakEven(l.classifications(trainSet, tuningSet, cat)))
         
         findBestCoofficients(classifications)
     }
@@ -686,7 +704,7 @@ class EvaluationDataAccumulator() {
 
 
 object SvmLightJniLearner {
-    def apply(_history: TargetClassDefinition => List[FilterFactory], trainSetSelection: TrainSetSelectionDefinition) = new Learner with TrainSetSelection with Thresholding {
+    def apply(_history: CategoryIs => List[FilterFactory], trainSetSelection: TrainSetSelectionDefinition) = new Learner with TrainSetSelection with Thresholding {
         val trainSetSelectionDef: TrainSetSelectionDefinition = trainSetSelection
         
         @transient val history = _history
@@ -696,20 +714,20 @@ object SvmLightJniLearner {
             "all"
             //trainSetSelectionDef.filenameAppendix
         
-        def targetHistory(targetClassDef: TargetClassDefinition) = history(targetClassDef)
+        def targetHistory(targetClassDef: CategoryIs) = history(targetClassDef)
         
-        def trainClassifier(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition): Classifier = SvmLightJniClassifier(
+        def trainClassifier(inst: ArffJsonInstancesSource, targetClassDef: CategoryIs): Classifier = SvmLightJniClassifier(
             inst,
             targetClassDef, 
             Some(this)
         )
         
-        def loadClassifier(file: File) = JoachimsSVMClassifier.load(file, Some(this))
+        def loadClassifier(fullFilename: String) = SvmLightJniClassifier.load(fullFilename, Some(this))
     }
 }
 
 object SvmLearner {
-    def apply(_history: TargetClassDefinition => List[FilterFactory], trainSetSelection: TrainSetSelectionDefinition) = new Learner with TrainSetSelection with Thresholding {
+    def apply(_history: CategoryIs => List[FilterFactory], trainSetSelection: TrainSetSelectionDefinition) = new Learner with TrainSetSelection with Thresholding {
         val trainSetSelectionDef: TrainSetSelectionDefinition = trainSetSelection
         
         @transient val history = _history
@@ -719,21 +737,21 @@ object SvmLearner {
             "all"
             //trainSetSelectionDef.filenameAppendix
         
-        def targetHistory(targetClassDef: TargetClassDefinition) = history(targetClassDef)
+        def targetHistory(targetClassDef: CategoryIs) = history(targetClassDef)
         
-        def trainClassifier(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition): Classifier = new JoachimsSVMClassifier(
+        def trainClassifier(inst: ArffJsonInstancesSource, targetClassDef: CategoryIs): Classifier = new JoachimsSVMClassifier(
             Map("-v" -> List("0")),
             inst,
             targetClassDef, 
             this
         )
         
-        def loadClassifier(file: File) = JoachimsSVMClassifier.load(file, Some(this))
+        def loadClassifier(fullFilename: String) = JoachimsSVMClassifier.load(fullFilename, Some(this))
     }
 }
 
 object SvmLearnerNT {
-    def apply(_history: TargetClassDefinition => List[FilterFactory], trainSetSelection: TrainSetSelectionDefinition) = new Learner with TrainSetSelection {
+    def apply(_history: CategoryIs => List[FilterFactory], trainSetSelection: TrainSetSelectionDefinition) = new Learner with TrainSetSelection {
         val trainSetSelectionDef: TrainSetSelectionDefinition = trainSetSelection
         
         @transient val history = _history
@@ -743,21 +761,21 @@ object SvmLearnerNT {
             "all"
             //trainSetSelectionDef.filenameAppendix
         
-        def targetHistory(targetClassDef: TargetClassDefinition) = history(targetClassDef)
+        def targetHistory(categoryIs: CategoryIs) = history(categoryIs)
         
-        def trainClassifier(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition): Classifier = new JoachimsSVMClassifier(
+        def trainClassifier(inst: ArffJsonInstancesSource, targetClassDef: CategoryIs): Classifier = new JoachimsSVMClassifier(
             Map("-v" -> List("0")),
             inst,
             targetClassDef, 
             this
         )
         
-        def loadClassifier(file: File) = JoachimsSVMClassifier.load(file, Some(this))
+        def loadClassifier(fullFilename: String) = JoachimsSVMClassifier.load(fullFilename, Some(this))
     }
 }
 
 object BoostedC45Learner {
-    def apply(history: TargetClassDefinition => List[FilterFactory], trainSetSelection: TrainSetSelectionDefinition, numIterations: Int) = new Learner with TrainSetSelection with Thresholding {
+    def apply(history: CategoryIs => List[FilterFactory], trainSetSelection: TrainSetSelectionDefinition, numIterations: Int) = new Learner with TrainSetSelection with Thresholding {
         val trainSetSelectionDef: TrainSetSelectionDefinition = trainSetSelection
         
         def fileAppendix = 
@@ -765,9 +783,9 @@ object BoostedC45Learner {
             "all"
             // trainSetSelectionDef.filenameAppendix
             
-        def targetHistory(targetClassDef: TargetClassDefinition) = history(targetClassDef)
+        def targetHistory(targetClassDef: CategoryIs) = history(targetClassDef)
         
-        def trainClassifier(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition): Classifier = WekaClassifier(
+        def trainClassifier(inst: ArffJsonInstancesSource, targetClassDef: CategoryIs): Classifier = WekaClassifier(
             inst, 
             targetClassDef, 
             Some(this),
@@ -779,12 +797,12 @@ object BoostedC45Learner {
             }}
         )
         
-        def loadClassifier(file: File) = WekaClassifier.load(file, Some(this))
+        def loadClassifier(fullFilename: String) = WekaClassifier.load(fullFilename, Some(this))
     }
 }
 
 object BoostedC45LearnerNT {
-    def apply(history: TargetClassDefinition => List[FilterFactory], trainSetSelection: TrainSetSelectionDefinition, numIterations: Int) = new Learner with TrainSetSelection {
+    def apply(history: CategoryIs => List[FilterFactory], trainSetSelection: TrainSetSelectionDefinition, numIterations: Int) = new Learner with TrainSetSelection {
         val trainSetSelectionDef: TrainSetSelectionDefinition = trainSetSelection
         
         def fileAppendix = 
@@ -792,11 +810,11 @@ object BoostedC45LearnerNT {
             "all"
             // trainSetSelectionDef.filenameAppendix
             
-        def targetHistory(targetClassDef: TargetClassDefinition) = history(targetClassDef)
+        def targetHistory(categoryIs: CategoryIs) = history(categoryIs)
         
-        def trainClassifier(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition): Classifier = WekaClassifier(
+        def trainClassifier(inst: ArffJsonInstancesSource, categoryIs: CategoryIs): Classifier = WekaClassifier(
             inst, 
-            targetClassDef, 
+            categoryIs, 
             Some(this),
             { () => {
                 val ada = new AdaBoostM1()
@@ -806,79 +824,30 @@ object BoostedC45LearnerNT {
             }}
         ) 
         
-        def loadClassifier(file: File) = WekaClassifier.load(file, Some(this))
+        def loadClassifier(fullFilename: String) = WekaClassifier.load(fullFilename, Some(this))
     }
 }
 
 object C45Learner {
-    def apply(history: TargetClassDefinition => List[FilterFactory], trainSetSelection: TrainSetSelectionDefinition) = new Learner with TrainSetSelection {
+    def apply(history: CategoryIs => List[FilterFactory], trainSetSelection: TrainSetSelectionDefinition) = new Learner with TrainSetSelection {
         val trainSetSelectionDef: TrainSetSelectionDefinition = trainSetSelection
         
          def fileAppendix = 
             "c45_" + 
             trainSetSelectionDef.filenameAppendix
             
-        def targetHistory(targetClassDef: TargetClassDefinition) = history(targetClassDef)
+        def targetHistory(categoryIs: CategoryIs) = history(categoryIs)
         
-        def trainClassifier(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition): Classifier = WekaClassifier(
+        def trainClassifier(inst: ArffJsonInstancesSource, targetClassDef: CategoryIs): Classifier = WekaClassifier(
             inst, 
             targetClassDef, 
             Some(this), 
             { () => new J48() }
         )
         
-        def loadClassifier(file: File) = WekaClassifier.load(file, Some(this))
+        def loadClassifier(fullFilename: String) = WekaClassifier.load(fullFilename, Some(this))
     }
 }
-
-/*object NaiveBayesLearner {
-    def apply(history: TargetClassDefinition => List[FilterFactory], trainSetSelection: TrainSetSelectionDefinition) = new Learner with TrainSetSelection {
-        val trainSetSelectionDef: TrainSetSelectionDefinition = trainSetSelection
-        
-        def fileAppendix = 
-            "bay_" + 
-            trainSetSelectionDef.filenameAppendix
-            
-        def targetHistory(targetClassDef: TargetClassDefinition) = history(targetClassDef)
-        
-        def trainClassifier(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition): Classifier = new WekaClassifier(
-            inst, 
-            targetClassDef, 
-            this
-        ) {
-            def classifierConfig() = new NaiveBayes()
-        }
-        
-        def loadClassifier(file: File) = WekaClassifier.load(file)
-    }
-}
-
-object BoostedNaiveBayesLearner {
-    def apply(history: TargetClassDefinition => List[FilterFactory], trainSetSelection: TrainSetSelectionDefinition, numIterations: Int) = new Learner with TrainSetSelection {
-        val trainSetSelectionDef: TrainSetSelectionDefinition = trainSetSelection
-        
-        def fileAppendix = 
-            "bay-boost-" + numIterations + "_" + 
-            trainSetSelectionDef.filenameAppendix
-            
-        def targetHistory(targetClassDef: TargetClassDefinition) = history(targetClassDef)
-        
-        def trainClassifier(inst: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition): Classifier = new WekaClassifier(
-            inst, 
-            targetClassDef, 
-            this
-        ) {
-            def classifierConfig() = {
-                val ada = new AdaBoostM1()
-                ada.setClassifier(new NaiveBayes)
-                ada.setNumIterations(numIterations)
-                ada
-            }
-        }
-        
-        def loadClassifier(file: File) = WekaClassifier.load(file)
-    }
-}*/
 
 
 

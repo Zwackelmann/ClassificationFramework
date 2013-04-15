@@ -24,7 +24,7 @@ object MyProcess {
                     try {
                         p.destroy()
                     } catch {
-                        case _ => 
+                        case _: Throwable => 
                     }
                 }
             }

@@ -4,6 +4,8 @@ import parser.ContentDescribable
 import parser.ContentDescription
 import model.RawClassification
 import common.Path
+import common.FileManager
+import FileManager.Protocol._
 
 object Thresholding {
     case class Threshold(val t: Double)
@@ -12,37 +14,38 @@ object Thresholding {
 trait Thresholding extends Learner {
     import Thresholding._
     
-    abstract override def classifications(inst: ArffJsonInstancesSource with ContentDescribable, targetClassDef: TargetClassDefinition, varifyClassifications: Boolean = false) = {
-        val c = super.classifications(inst, targetClassDef, varifyClassifications)
+    abstract override def classifications(trainSet: ArffJsonInstancesSource, tuningSet: ArffJsonInstancesSource, cat: CategoryIs) = {
+        val c = super.classifications(trainSet, tuningSet, cat)
+        
+        val (contentDescribableTrainSet, contentDescribableTuningSet) = (trainSet, tuningSet) match {
+            case (contentDescribableTrainSet: ContentDescribable, contentDescribableTuningSet: ContentDescribable) => (contentDescribableTrainSet, contentDescribableTuningSet)
+            case _ => throw new RuntimeException("thresholding with trainSet or tuningSet that are not ContentDescribable is not supported yet")
+        }
+        
         val thresholdPath = {
-            val trainBaseCd = ContentDescription(inst.contentDescription.base, ContentDescription.TrainSet, targetHistory(targetClassDef))
-            val targetCd = ContentDescription(inst.contentDescription.base, inst.contentDescription.set, targetHistory(targetClassDef))
-            
-            val resultsFilename = Learner.resultsFilename(trainBaseCd, targetClassDef, Some(this), targetCd)
+            val resultsFilename = Learner.classificationsFilename(contentDescribableTrainSet.contentDescription, cat, Some(this), contentDescribableTuningSet.contentDescription)
             Path.thresholdsPath / resultsFilename
         }
         
-        val threshold = if(!thresholdPath.exists()) {
-            val classifications = {
-            	val c = super.classificationsIfCached(inst.contentDescription.toTuning, targetClassDef)
-            	c match {
-            	    case Some(c) => c
-            	    case None => super.classifications(mapInstances(inst, targetClassDef, Some(ContentDescription.TuningSet)), targetClassDef)
-            	}
+        val threshold = (FileManager !? ReceiveFile(thresholdPath, false)) match {
+            case AcceptReceiveFile(file) => {
+                if(file.exists) {
+                    common.ObjectToFile.readObjectFromFile(file).asInstanceOf[Double]
+                } else {
+                    val classifications = super.classifications(trainSet, tuningSet, cat)
+                    
+                    // TODO find out why this crashes in 1 of 10000 cases.... 
+                    val bestThreshold = try {
+                        RawClassification.findBestThreshold(RawClassification.normalize(classifications))
+                    } catch {
+                        case _: Throwable => 0.0
+                    }
+                    common.ObjectToFile.writeObjectToFile(bestThreshold, file)
+                    bestThreshold
+                }
             }
-            
-            // TODO find out why this crashes in 1 of 10000 cases.... 
-            val bestThreshold = try {
-                RawClassification.findBestThreshold(RawClassification.normalize(classifications))
-            } catch {
-                case _ => 0.0
-            }
-            common.ObjectToFile.writeObjectToFile(bestThreshold, thresholdPath)
-            bestThreshold
-        } else {
-            common.ObjectToFile.readObjectFromFile(thresholdPath).asInstanceOf[Double]
+            case Error(msg) => throw new RuntimeException(msg)
         }
-        
         RawClassification.withThreshold(c, threshold)
     }
 }

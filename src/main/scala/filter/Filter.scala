@@ -4,16 +4,19 @@ import parser.ArffJsonInstancesSource
 import java.io.File
 import parser.ContentDescription
 import common.Path.filterPath
-import classifier.TargetClassDefinition
+import classifier.CategoryIs
+import common.Path
+import common.FileManager
 
 object Filter {
     val serializeFilters = true
+    def filename(trainBase: ContentDescription, filterFactoryAppendix: String) = trainBase.filename + "__" + filterFactoryAppendix
+    def fullFilename(trainBase: ContentDescription, filterFactoryAppendix: String) = Path.filterPath / filename(trainBase, filterFactoryAppendix)
 }
 
 trait Filter {
-    def applyFilter(source: ArffJsonInstancesSource, targetClassDefinition: TargetClassDefinition): ArffJsonInstancesSource
-    
-    def save(outFile: File) {
-        common.ObjectToFile.writeObjectToFile(this, outFile)
-    }
+    def applyFilter(source: ArffJsonInstancesSource, categoryIs: CategoryIs): ArffJsonInstancesSource
 }
+
+
+

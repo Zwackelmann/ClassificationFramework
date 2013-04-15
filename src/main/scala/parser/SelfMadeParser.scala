@@ -15,7 +15,7 @@ object SelfMadeParser {
                 val paper = p.readPaper(p.nextLines)
                 count += 1
             } catch {
-                case _ => error += 1
+                case _: Throwable => error += 1
             }
         }
         

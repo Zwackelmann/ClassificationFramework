@@ -1,9 +1,9 @@
 package filter
 import parser.ArffJsonInstancesSource
 import parser.History
-import classifier.TargetClassDefinition
 import format.arff_json.ArffJsonHeader
 import format.arff_json.ArffJsonInstance
+import classifier.CategoryIs
 
 object ConcatFilter {
     def apply(ids: List[Int], concatDesc: String) = new FilterFactory {
@@ -17,7 +17,7 @@ object ConcatFilter {
     @serializable
     trait Appendix extends History {
         val concat: Pair[List[Int], String]
-        abstract override def apply(targetClassDef: TargetClassDefinition) = super.apply(targetClassDef) :+ ConcatFilter(concat._1, concat._2)
+        abstract override def apply(categoryIs: CategoryIs) = super.apply(categoryIs) :+ ConcatFilter(concat._1, concat._2)
     }
 }
 

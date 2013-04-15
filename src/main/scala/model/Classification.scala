@@ -10,6 +10,15 @@ import java.io.FileWriter
 import classifier.Classifier
 import java.io.BufferedReader
 import java.io.FileReader
+import scala.io.{ Source => ScalaSource }
+import classifier.Classifier
+import classifier.Learner
+import parser.ArffJsonInstancesSource
+import parser.ContentDescribable
+import parser.ArffJsonInstancesSource
+import common.Path
+import common.FileManager
+import FileManager.Protocol._
 
 object RawClassification {
     class Category(val name: String) {
@@ -36,21 +45,27 @@ object RawClassification {
         new RawClassification(a.get(0).asInstanceOf[String], classification, trueClass)
     }
     
-    def fromFile(file: File) = {
-        val br = new BufferedReader(new FileReader(file))
-        
-        def lines: Stream[String] = (br.readLine()) #:: lines
-        val result = lines.takeWhile(_ != null).map(RawClassification(_)).toList
-        br.close()
-        result
+    def fromFile(fullFilename: String) = {
+        (FileManager !? LinesOfFile(fullFilename)) match {
+            case AcceptLinesOfFile(lines) => {
+                lines.map(RawClassification(_)).toList
+            }
+            case FileNotExists => throw new RuntimeException(fullFilename + " file does not exist")
+            case Error(msg) => throw new RuntimeException(msg)
+        }
     }
     
-    def save(classifications: Iterable[RawClassification], file: File) {
-        val w = new BufferedWriter(new FileWriter(file))
-        for(classification <- classifications) {
-            w.write(classification.toJson + "\n")
+    def save(classifications: Iterable[RawClassification], file: Path) {
+        (FileManager !? WriteFile(file)) match {
+            case AcceptWriteFile(writer) => {
+                for(classification <- classifications) {
+                    writer.write(classification.toJson + "\n")
+                }
+                writer.close
+            }
+            case RejectWriteFile => 
+            case Error(msg) => throw new RuntimeException(msg)
         }
-        w.close
     }
     
     def findBestThresholdWithPrecison(classifications: List[RawClassification], targetPrecision: Double) = {
@@ -150,8 +165,8 @@ object RawClassification {
         def fmeasure(prec: Double, rec: Double, alpha: Double) = ((1 + alpha) * prec * rec) / ((alpha * prec) + rec) 
         
         for(i <- 0 until 100) {
-            val p = Classifier.precision(classifications.view.map(c => new RawClassification(c.id, c.classification - t, c.realValue)), 0)
-            val r = Classifier.recall(classifications.view.map(c => new RawClassification(c.id, c.classification - t, c.realValue)), 0)
+            val p = Classifier.precision(classifications.view.map(c => new RawClassification(c.id, c.classification - t, c.realValue)))
+            val r = Classifier.recall(classifications.view.map(c => new RawClassification(c.id, c.classification - t, c.realValue)))
             
             // set new max if f-measure is better
             if(!fmeasure(p, r, alpha).isNaN() && (opt == null || opt._2 > fmeasure(p, r, alpha))) {
@@ -176,7 +191,7 @@ object RawClassification {
     
     def findBestThreshold(classifications: List[RawClassification], alpha: Double = 1.0) = {
         val (t1, f1) = findBestThreshold1(classifications, alpha)
-        val (t2, f2) = try {findBestThreshold2(classifications, alpha)} catch { case _ => (0.0, 0.0)}
+        val (t2, f2) = try {findBestThreshold2(classifications, alpha)} catch { case _: Throwable => (0.0, 0.0)}
         
         if(f2.isNaN() || f1 > f2) t1
         else t2
@@ -186,7 +201,7 @@ object RawClassification {
         val t = try {
             findBestThreshold(classifications, alpha)
         } catch {
-            case _ => 0.0
+            case _: Throwable => 0.0
         }
         
         classifications.map(c => {
@@ -277,7 +292,7 @@ object RawClassification {
                 val a = alpha(bestC)
                 val newWeights = bestC.map(c => c.id -> (if(c.hit) weights(c.id) * math.sqrt(e._1/e._2) else weights(c.id) * math.sqrt(e._2/e._1))).toMap  
                 
-                boostStep(pool - bestC, newWeights, Pair(bestC, a) :: classifiersAndWeights)
+                boostStep(pool diff List(bestC), newWeights, Pair(bestC, a) :: classifiersAndWeights)
             } else {
                 classifiersAndWeights
             }
@@ -367,6 +382,38 @@ class RawClassification(val id: String, val classification: Double, val realValu
 }
 
 object CertaintyToThresholdFunction {
+    def apply(classifier: Classifier, trainSet: ArffJsonInstancesSource with ContentDescribable, tuningSet: ArffJsonInstancesSource with ContentDescribable): CertaintyToThresholdFunction  = {
+        val path = for(
+            cd <- classifier.trainBaseContentDescription;
+            parent <- classifier.parent
+        ) yield {
+            common.Path.tuningPath / Learner.classifierFilename(cd, classifier.targetClassDef, Some(parent))
+        }
+        
+        path match {
+            case Some(path) => {
+                (FileManager !? FileExists(path)) match {
+                    case Exists(true) => {
+                        CertaintyToThresholdFunction.load(path)
+                    }
+                    case Exists(false) => {
+                        val fun = classifier2CertaintyFunction(classifier, trainSet, tuningSet)
+                        fun.save(path)
+                        fun
+                    }
+                }
+            }
+            case None => classifier2CertaintyFunction(classifier, trainSet, tuningSet)
+        }
+    } 
+    
+    private def classifier2CertaintyFunction(classifier: Classifier, trainBase: ArffJsonInstancesSource with ContentDescribable, tuningSet: ArffJsonInstancesSource with ContentDescribable) = CertaintyToThresholdFunction(
+        classifier.parent match {
+            case Some(parent) => parent.classifications(trainBase, tuningSet, classifier.targetClassDef)
+            case None => throw new RuntimeException("cannot map tuning set to generate classificaitons because there is no learner associate with the given classifier")
+        }
+    )
+    
     def apply(classifications: List[RawClassification]) = {
         val sorted = classifications.sortWith((c1, c2) => c1.classification > c2.classification)
         val numPositives = classifications.count(c => c.realValue >= 0)
@@ -395,6 +442,21 @@ object CertaintyToThresholdFunction {
         }).flatten.toList
         
         new CertaintyToThresholdFunction(skylinePoints.map(p => (p._1, p._3)))
+    }
+    
+    def load(fullFilename: String) = {
+        (FileManager !? LinesOfFile(fullFilename)) match {
+            case AcceptLinesOfFile(lines) => {
+                new CertaintyToThresholdFunction(
+                    lines.map(line => {
+                        val jarr = net.sf.json.JSONSerializer.toJSON(line).asInstanceOf[JSONArray]
+                        (jarr.get(0).asInstanceOf[Double], jarr.get(1).asInstanceOf[Double])
+                    }).toList
+                )
+            }
+            case FileNotExists => throw new RuntimeException(fullFilename + " does not exist")
+            case Error(msg) => throw new RuntimeException(msg)
+        }
     }
 }
 
@@ -427,6 +489,19 @@ class CertaintyToThresholdFunction(val precThdPairs: List[Pair[Double, Double]])
         m*classificationValue + b
     } else {
         0.0
+    }
+    
+    def save(fullFilename: String) {
+        (FileManager !? WriteFile(fullFilename)) match {
+            case AcceptWriteFile(writer) => {
+                for(precThdPair <- precThdPairs) {
+                    writer.write("[" + precThdPair._1 + "," + precThdPair._2 + "]\n")
+                }
+                writer.close()
+            }
+            case RejectWriteFile => throw new RuntimeException("write file " + fullFilename + " rejected")
+            case Error(msg) => throw new RuntimeException(msg)
+        }
     }
 }
 

@@ -4,7 +4,7 @@ import java.io.File
 
 object PrecRecGraphScript {
     def main(args: Array[String]) {
-        val classifications = RawClassification.fromFile(new File("exp_proj-abs_vec-conf9-min-3_svm_tss-all-all_tg-00XXXX_exp-test_proj-abs_vec-conf9-min-3.json"))
+        val classifications = RawClassification.fromFile("exp_proj-abs_vec-conf9-min-3_svm_tss-all-all_tg-00XXXX_exp-test_proj-abs_vec-conf9-min-3.json")
         
         val sorted = classifications.sortWith((c1, c2) => c1.classification > c2.classification)
         val numPositives = classifications.count(c => c.realValue >= 0)

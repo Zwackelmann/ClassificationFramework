@@ -1,5 +1,5 @@
 package filter
-import classifier.TargetClassDefinition
+import classifier.CategoryIs
 import parser.ArffJsonInstancesSource
 import java.io.File
 import feature_scoreing.OddsRatio
@@ -9,15 +9,12 @@ import format.arff_json.SparseArffJsonInstance
 import parser.History
 
 object ScalingOddsRatioFilter {
-    
-    def apply(targetClassDef: TargetClassDefinition, orThreshold: Double, numWorst: Int, shift: Double) = new StorableFilterFactory() {
+    def apply(categoryIs: CategoryIs, orThreshold: Double, numWorst: Int, shift: Double) = new FilterFactory() with Loadable[ScalingOddsRatioFilter] {
         def apply(trainBase: ArffJsonInstancesSource) = {
-            new ScalingOddsRatioFilter(trainBase, targetClassDef, orThreshold, numWorst, shift)
+            new ScalingOddsRatioFilter(trainBase, categoryIs, orThreshold, numWorst, shift)
         }
         
-        def load(file: File) = common.ObjectToFile.readObjectFromFile(file).asInstanceOf[ScalingOddsRatioFilter]
-        
-        val historyAppendix = "sor-" + orThreshold + "-" + numWorst + "-" + shift + "-" + targetClassDef.filenameExtension
+        val historyAppendix = "sor-" + orThreshold + "-" + numWorst + "-" + shift + "-" + categoryIs.filenameExtension
     }
     
     @serializable
@@ -25,7 +22,7 @@ object ScalingOddsRatioFilter {
         val orThreshold: Double
         val numWorst: Int
         val shift: Double
-        abstract override def apply(targetClassDef: TargetClassDefinition) = super.apply(targetClassDef) :+ ScalingOddsRatioFilter(targetClassDef, orThreshold, numWorst, shift)
+        abstract override def apply(categoryIs: CategoryIs) = super.apply(categoryIs) :+ ScalingOddsRatioFilter(categoryIs, orThreshold, numWorst, shift)
     }
     
     val maxScore = 100
@@ -40,10 +37,10 @@ object ScalingOddsRatioFilter {
 }
 
 @serializable
-class ScalingOddsRatioFilter(trainBase: ArffJsonInstancesSource, targetClassDef: TargetClassDefinition, orThreshold: Double, numWorst: Int, shift: Double) extends GlobalFilter {
+class ScalingOddsRatioFilter(trainBase: ArffJsonInstancesSource, categoryIs: CategoryIs, orThreshold: Double, numWorst: Int, shift: Double) extends GlobalFilter {
     import ScalingOddsRatioFilter._
     
-    val featureScoring = new OddsRatio(trainBase, targetClassDef)
+    val featureScoring = new OddsRatio(trainBase, categoryIs)
     
     def applyFilter(inst: ArffJsonInstancesSource) = {
         val bestFeatures = featureScoring.rankedFeatureList

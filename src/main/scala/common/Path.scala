@@ -8,8 +8,9 @@ object Path {
     val classifierPath = new Path("classifier") !
     val resultsPath = new Path("results") !
     val thresholdsPath = new Path("thresholds") !
+    val tuningPath = new Path("tuning") !
     
-    def join(path1: String, path2: String, separator: String) = {
+    def join(path1: String, path2: String, separator: String): String = {
         if(path1.substring(path1.length()-separator.length, path1.length()) == separator) {
             path1.substring(0, path1.length()-separator.length)
         } else {
@@ -17,6 +18,11 @@ object Path {
         }
         
         path1 + separator + path2
+    }
+    
+    def join(path1: String, path2: String): String = {
+        val sep = separator(path1 + path2)
+        join(path1, path2, sep)
     }
     
     def separator(path: String) = {
@@ -28,7 +34,7 @@ object Path {
             File.separator
     }
     
-    implicit def pathToFile(path: Path) = new File(path.fullPath)
+    implicit def pathToFilename(path: Path) = path.fullPath
 }
 
 @serializable
@@ -38,6 +44,9 @@ class Path(val relativePath: String) {
     def file = new File(fullPath())
     
     def fullPath() = {
+        // TODO the separator symbol should be replaced here with respect to the systems separator char
+        // for that I should first explore if there are other separator chars than "/" and "\" that should
+        // be replaced with File.separator 
         val sep = separator(rootPath + relativePath)
         join(rootPath, relativePath, sep)
     }

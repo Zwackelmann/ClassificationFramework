@@ -10,7 +10,7 @@ import parser.ArffJsonInstancesSource
 
 object FindOutWhatTermsAreDeletedIfMinTermCountIncreases {
     def main(args: Array[String]) {
-        val source = ArffJsonInstancesSource(new File("data/arffJson/exp-train_proj-abs.json"), ContentDescription("exp", ContentDescription.TrainSet, List()))
+        val source = ArffJsonInstancesSource("data/arffJson/exp-train_proj-abs.json", ContentDescription("exp", ContentDescription.TrainSet, List()))
         
         val filters = (for(minCount <- List(3, 5, 10, 15, 25, 50, 100)) yield {
             val filter = new VectorFromDictFilter() {

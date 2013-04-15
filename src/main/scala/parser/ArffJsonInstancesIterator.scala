@@ -19,7 +19,7 @@ class ArffJsonInstancesIterator(reader: BufferedReader, header: ArffJsonHeader) 
             buffer = try {
                 ArffJsonInstance(line, header)
             } catch {
-                case e => {
+                case e: Exception => {
                     // println("catch: line: " + count + ", text: " + line)
                     ArffJsonInstance(JSONSerializer.toJSON(line).asInstanceOf[JSONArray], header)
                 }

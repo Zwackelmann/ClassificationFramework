@@ -15,60 +15,82 @@ import net.sf.json.JSONSerializer
 import java.io.FileReader
 import net.sf.json.JSONObject
 import net.sf.json.JSONException
+import classifier.CategoryIs
+import common.FileManager
+import common.FileManager.Protocol._
+import common.Path
 
 object ArffJsonInstancesSource {
     def apply(_source: Iterable[ArffJsonInstance], _header: ArffJsonHeader, _contentDescription: ContentDescription): ArffJsonInstancesSource with ContentDescribable = {
         new ArffJsonInstancesSource with ContentDescribable {
             val header = _header
-            val iterator = _source.iterator
+            def iterator = _source.iterator
             val contentDescription = _contentDescription
         }
     }
     
-    def apply(cd: ContentDescription) = new ArffJsonInstancesSource() with ContentDescribable {
-        def reader = new BufferedReader(new FileReader(file))
-    
-        lazy val header: ArffJsonHeader = {
-            val r = reader
-            
-            val h = try {
-                JSONSerializer.toJSON(r.readLine) match {
-                    case o: JSONObject => ArffJsonHeader.jsonToArffJsonHeader(o)
-                    case _ => throw new RuntimeException("File: " + contentDescription.file + ": The first line in file cannot be interpeted as a JSON object")
-                }
-            } catch {
-                case jsonEx: JSONException => throw new RuntimeException("The first line in file does not contain a valid JSON string")
-                case e => throw e
-            }
-            r.close()
-            h
+    def apply(_source: Iterable[ArffJsonInstance], _header: ArffJsonHeader): ArffJsonInstancesSource = {
+        new ArffJsonInstancesSource {
+            val header = _header
+            def iterator = _source.iterator
         }
-        
-        def iterator = {
-            val r = reader
-            r.readLine()
-            new ArffJsonInstancesIterator(r, header)
-        }
-        
-        val contentDescription = cd
     }
     
-    def apply(base: String, set: ContentDescription.Set, formatHistory: List[FilterFactory]): ArffJsonInstancesSource with ContentDescribable = apply(ContentDescription(base, set, formatHistory))
+    def apply(cd: ContentDescription) = (FileManager !? ReceiveFile(cd.fullFilename, true)) match {
+        case AcceptReceiveFile(file) => {
+            val inst = new ArffJsonInstancesSource() with ContentDescribable {
+                def reader = new BufferedReader(new FileReader(file))
+            
+                lazy val header: ArffJsonHeader = {
+                    val r = reader
+                    
+                    val h = try {
+                        JSONSerializer.toJSON(r.readLine) match {
+                            case o: JSONObject => ArffJsonHeader.jsonToArffJsonHeader(o)
+                            case _ => throw new RuntimeException("File: " + file + ": The first line in file cannot be interpeted as a JSON object")
+                        }
+                    } catch {
+                        case jsonEx: JSONException => throw new RuntimeException("The first line in file does not contain a valid JSON string")
+                        case e: Throwable => throw e
+                    }
+                    r.close()
+                    h
+                }
+                
+                def iterator = {
+                    val r = reader
+                    r.readLine()
+                    new ArffJsonInstancesIterator(r, header)
+                }
+                
+                val contentDescription = cd
+            }
+            Some(inst)
+        }
+        case FileNotExists => None
+        case Error(msg) => throw new RuntimeException(msg)
+    }
     
-    def apply(_file: File, cd: ContentDescription) = new ArffJsonInstancesSource() with ContentDescribable {
-        def reader = new BufferedReader(new FileReader(file))
+    def apply(base: String, set: ContentDescription.Set, formatHistory: List[(FilterFactory, ContentDescription)]): Option[ArffJsonInstancesSource with ContentDescribable] = apply(ContentDescription(base, set, formatHistory))
+    
+    def apply(_fullFilename: String, cd: ContentDescription) = new ArffJsonInstancesSource() with ContentDescribable {
+        def reader = (FileManager !? ReceiveFile(_fullFilename, true)) match {
+            case AcceptReceiveFile(file) => new BufferedReader(new FileReader(file))
+            case FileNotExists => throw new RuntimeException(_fullFilename + " does not exist")
+            case Error(msg) => throw new RuntimeException(msg)
+        }
     
         val header: ArffJsonHeader = {
             val r = reader
             
             val h = try {
-                JSONSerializer.toJSON(r.readLine) match {
+                JSONSerializer.toJSON(r.readLine()) match {
                     case o: JSONObject => ArffJsonHeader.jsonToArffJsonHeader(o)
                     case _ => throw new RuntimeException("The first line in file cannot be interpeted as a JSON object")
                 }
             } catch {
                 case jsonEx: JSONException => throw new RuntimeException("The first line in file does not contain a valid JSON string")
-                case e => throw e
+                case e: Throwable => throw e
             }
             r.close()
             h
@@ -80,18 +102,22 @@ object ArffJsonInstancesSource {
             new ArffJsonInstancesIterator(r, header)
         }
         
-        override def file = _file
+        override def fullFilename = _fullFilename
         
         val contentDescription = cd
     }
     
-    def apply(_file: File): ArffJsonInstancesSource = new ArffJsonInstancesSource() {
-        override def file = _file
+    def apply(_fullFilename: String): ArffJsonInstancesSource = new ArffJsonInstancesSource() {
+        override def fullFilename = _fullFilename
         override def saved = true
-        override def save(file: File) = error("File cannot be saved")
+        override def save(fullFilename: String) = error("File cannot be saved")
         override def save() = error("File cannot be saved")
         
-        def reader = new BufferedReader(new FileReader(file))
+        def reader = (FileManager !? ReceiveFile(_fullFilename, true)) match {
+            case AcceptReceiveFile(file) => new BufferedReader(new FileReader(file))
+            case FileNotExists => throw new RuntimeException(_fullFilename + " does not exist")
+            case Error(msg) => throw new RuntimeException(msg)
+        }
     
         val header: ArffJsonHeader = {
             val r = reader
@@ -103,7 +129,7 @@ object ArffJsonInstancesSource {
                 }
             } catch {
                 case jsonEx: JSONException => throw new RuntimeException("The first line in file does not contain a valid JSON string")
-                case e => throw e
+                case e: Throwable => throw e
             }
             r.close()
             h
@@ -146,6 +172,10 @@ trait ArffJsonInstancesSource extends Iterable[ArffJsonInstance] {
         filter.applyFilter(this)
     }
     
+    def applyFilter(filter: Filter, categoryIs: CategoryIs) = {
+        filter.applyFilter(this, categoryIs)
+    }
+    
     def numAttributes = header.attributes.size
     
     lazy val numInstances = iterator.size
@@ -158,7 +188,7 @@ trait ArffJsonInstancesSource extends Iterable[ArffJsonInstance] {
                 new ArffJsonInstancesSource with ContentDescribable {
                     def header = headerFun(header)
                     def iterator = thisInst.iterator.flatMap(elemFun)
-                    val contentDescription = c.contentDescription.addFilterFactory(historyAppendix)
+                    val contentDescription = c.contentDescription.addHistoryItem((historyAppendix,c.contentDescription))
                 }
             }
         }
@@ -180,7 +210,7 @@ trait ArffJsonInstancesSource extends Iterable[ArffJsonInstance] {
             new ArffJsonInstancesSource with ContentDescribable {
                 def header = headerFun(thisInst.header)
                 def iterator = thisInst.iterator.map(elemFun)
-                val contentDescription = co.contentDescription.addFilterFactory(historyAppendix)
+                val contentDescription = co.contentDescription.addHistoryItem((historyAppendix, co.contentDescription))
             }
         }
         
@@ -237,34 +267,37 @@ trait ArffJsonInstancesSource extends Iterable[ArffJsonInstance] {
         }
     }
     
-    def file: File = this match {
-        case co: ContentDescribable => co.contentDescription.file
+    def fullFilename: String = this match {
+        case co: ContentDescribable => co.contentDescription.fullFilename
         case _ => throw new RuntimeException("file() cannot be called if ArffJsonInstancesSource is not ContentDescribable")
     }
     
-    def save(_file: File) {
-        if(_file.exists()) {
-            // do not save the same file you are reading from (doesn't make sence??)
-        } else {
-            val writer = new BufferedWriter(new FileWriter(_file))
-            writer.write(header.toJson + "\n")
-        
-            for(inst <- iterator) {
-                writer.write(inst.toJson + "\n")
+    def save(fullFilename: String) {
+        (FileManager !? WriteFile(fullFilename)) match {
+            case AcceptWriteFile(writer) => {
+                writer.write(header.toJson + "\n")
+                for(inst <- iterator) {
+                    writer.write(inst.toJson + "\n")
+                }
+                writer.close()
             }
-            writer.close()
+            case RejectWriteFile => 
+            case Error(msg) => throw new RuntimeException(msg)
         }
     }
     
     def save() {
         this match {
-            case co: ContentDescribable => save(file)
-            case _ => throw new RuntimeException("file() cannot be called if ArffJsonInstancesSource is not ContentDescribable")
+            case co: ContentDescribable => save(co.contentDescription.fullFilename)
+            case _ => throw new RuntimeException("save() cannot be called if ArffJsonInstancesSource is not ContentDescribable")
         }
     }
     
     def saved() = this match {
-        case co: ContentDescribable => file.exists()
+        case co: ContentDescribable => (FileManager !? FileExists(co.contentDescription.fullFilename)) match {
+            case Exists(b) => b
+            case Error(msg) => throw new RuntimeException(msg)
+        }
         case _ => throw new RuntimeException("saved() cannot be called if ArffJsonInstancesSource is not ContentDescribable")
     }
 }

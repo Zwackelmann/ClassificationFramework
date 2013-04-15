@@ -9,7 +9,7 @@ import java.nio.file.StandardCopyOption._;
 
 object FindConsistentResultSets {
 	def main(args: Array[String]) {
-	    val corpus = ArffJsonInstancesSource(new File("data/arffJson/corpus.json"))
+	    val corpus = ArffJsonInstancesSource("data/arffJson/corpus.json")
 	    val layer = 3
 	    val set = "tuning"
 	    val learner = "c45"
@@ -20,7 +20,7 @@ object FindConsistentResultSets {
 	        case 2 => ApplyFinalClassifier.findConsideredCategories(corpus, layer, 100).map(c => CategoryIs.topAndMiddle(c.substring(0, 2), c.substring(2, 3)))
 	        case 3 => ApplyFinalClassifier.findConsideredCategories(corpus, layer, 100).map(c => CategoryIs.topMiddleAndLeave(c.substring(0, 2), c.substring(2, 3), c.substring(3, 5)))
 	    }
-	    val realSetIds = ArffJsonInstancesSource(new File("data/arffJson/min100-" + set + ".json")).map(_.id).toSet
+	    val realSetIds = ArffJsonInstancesSource("data/arffJson/min100-" + set + ".json").map(_.id).toSet
 	    
 	    val resultDirnames = List(
 	        "data/results(x)",
@@ -46,8 +46,8 @@ object FindConsistentResultSets {
 	        
 	        val candidates = files.map(filename => {
 	            (for(resultDirname <- resultDirnames) yield {
-	                val file = new File(resultDirname + "/" + filename)
-	                if(file.exists()) List(Pair(RawClassification.fromFile(file).map(_.id).toSet, file))
+	                val fullFilename = resultDirname + "/" + filename
+	                if(new File(fullFilename).exists()) List(Pair(RawClassification.fromFile(fullFilename).map(_.id).toSet, fullFilename))
 	                else List()
 	            }).flatten
 	        })
@@ -57,8 +57,8 @@ object FindConsistentResultSets {
 	            for((rset, file) <- fileTypeList) yield {
 		            val valid = rset.forall(id => realSetIds.contains(id))
 		            if(!valid) println("   ! " + file) else println("   / " + file)
-		            val srcPath = file.toPath()
-		            val targetPath = targetDir.toPath().resolve(file.toPath().getFileName())
+		            val srcPath = new File(file).toPath()
+		            val targetPath = targetDir.toPath().resolve(new File(file).toPath().getFileName())
 		            
 		            if(valid) {
 		                if(!targetPath.toFile.exists() || targetPath.toFile().length() < srcPath.toFile().length()) {

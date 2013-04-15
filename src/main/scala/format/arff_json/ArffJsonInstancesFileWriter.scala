@@ -2,9 +2,13 @@ package format.arff_json
 import parser.ContentDescription
 import java.io.BufferedWriter
 import java.io.FileWriter
+import common.FileManager
+import FileManager.Protocol._
 
 class ArffJsonInstancesFileWriter(val header: ArffJsonHeader, val contentDescription: ContentDescription) {
-    val writer = new BufferedWriter(new FileWriter(contentDescription.file))
+    val writer = (FileManager !? WriteFile(contentDescription.fullFilename)) match {
+        case AcceptWriteFile(writer) => writer
+    }
     
     writer.write(header.toJson + "\n")
     

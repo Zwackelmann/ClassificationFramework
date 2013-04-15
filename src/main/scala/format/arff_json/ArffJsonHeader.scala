@@ -4,9 +4,21 @@ import net.sf.json.JSONObject
 import net.sf.json.JSONArray
 import common.Common.escape
 import weka.core.Instances
+import net.sf.json.JSONSerializer
 
 object ArffJsonHeader {
-    def jsonToArffJsonHeader(obj: JSONObject) = {
+    def jsonToArffJsonHeader(str: String): ArffJsonHeader = {
+        val json = try {
+            JSONSerializer.toJSON(str) match {
+                case o: JSONObject => o
+                case _ => throw new RuntimeException("The first line in file cannot be interpeted as a JSON object")
+            }
+        }
+        
+        jsonToArffJsonHeader(json)
+    }
+    
+    def jsonToArffJsonHeader(obj: JSONObject): ArffJsonHeader = {
         def assertAtt(name: String) = {
             obj.get(name) match {
                 case null => throw new RuntimeException("The File does not contain a valid ArffJson header")

@@ -29,3 +29,7 @@ data(nach paper)*
 hs_err*
 results*
 data/min100.metadata
+data/tuning
+data_stemmed-termes/
+data_tib
+svm_lvl1.jar
