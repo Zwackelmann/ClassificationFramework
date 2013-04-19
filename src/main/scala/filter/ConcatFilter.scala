@@ -30,7 +30,11 @@ class ConcatFilter(ids: List[Int]) extends GlobalFilter {
             	    (a: Any, b: Any) => {
             	        (a, b) match {
             	            case (s1: String, s2: String) => s1 + " " + s2
-            	            case _ => throw new RuntimeException("only Strings Exception!!")
+            	            case _ => {
+            	                println("title: " + a)
+                                println("abstract: " + b)
+            	                throw new RuntimeException("only Strings Exception!!")
+            	            }
             	        }
             	    }
             	))

@@ -11,14 +11,15 @@ import filter.FilterFactory
 import scala.collection.mutable
 import format.arff_json.Point
 import java.io.BufferedReader
-import net.sf.json.JSONSerializer
 import java.io.FileReader
-import net.sf.json.JSONObject
-import net.sf.json.JSONException
 import classifier.CategoryIs
 import common.FileManager
 import common.FileManager.Protocol._
 import common.Path
+import com.alibaba.fastjson.serializer.JSONSerializer
+import com.alibaba.fastjson.JSONObject
+import com.alibaba.fastjson.JSONException
+import com.alibaba.fastjson.parser.DefaultJSONParser
 
 object ArffJsonInstancesSource {
     def apply(_source: Iterable[ArffJsonInstance], _header: ArffJsonHeader, _contentDescription: ContentDescription): ArffJsonInstancesSource with ContentDescribable = {
@@ -45,7 +46,7 @@ object ArffJsonInstancesSource {
                     val r = reader
                     
                     val h = try {
-                        JSONSerializer.toJSON(r.readLine) match {
+                        new DefaultJSONParser(r.readLine).parse match {
                             case o: JSONObject => ArffJsonHeader.jsonToArffJsonHeader(o)
                             case _ => throw new RuntimeException("File: " + file + ": The first line in file cannot be interpeted as a JSON object")
                         }
@@ -84,7 +85,7 @@ object ArffJsonInstancesSource {
             val r = reader
             
             val h = try {
-                JSONSerializer.toJSON(r.readLine()) match {
+                new DefaultJSONParser(r.readLine()).parse match {
                     case o: JSONObject => ArffJsonHeader.jsonToArffJsonHeader(o)
                     case _ => throw new RuntimeException("The first line in file cannot be interpeted as a JSON object")
                 }
@@ -123,7 +124,7 @@ object ArffJsonInstancesSource {
             val r = reader
             
             val h = try {
-                JSONSerializer.toJSON(r.readLine) match {
+                new DefaultJSONParser(r.readLine).parse match {
                     case o: JSONObject => ArffJsonHeader.jsonToArffJsonHeader(o)
                     case _ => throw new RuntimeException("The first line in file cannot be interpeted as a JSON object")
                 }

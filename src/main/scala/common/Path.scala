@@ -2,7 +2,9 @@ package common
 import java.io.File
 
 object Path {
-    val rootPath = new File("data").getCanonicalPath()
+    var rootFolder = "data"
+    def rootPath = new File(rootFolder).getCanonicalPath()
+    
     val arffJsonPath = new Path("arffJson") !
     val filterPath = new Path("filter") !
     val classifierPath = new Path("classifier") !

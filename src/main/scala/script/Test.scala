@@ -1,16 +1,14 @@
 package script
-import java.io.File
-import model.RawClassification
+
+import common.Path
 import parser.ArffJsonInstancesSource
-import filter.CategorySelectionFilter
-import classifier.CategoryIs
-import scala.collection.mutable
-import java.io.BufferedWriter
-import java.io.FileWriter
+import common.FileManager
 
 object Test {
     def main(args: Array[String]) {
-        
+        val inst = ArffJsonInstancesSource("data_fiz_full/arffJson/corpus.json") 
+        println(inst.size)
+        FileManager.quit
     }
 }
 

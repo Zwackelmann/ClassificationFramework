@@ -7,8 +7,6 @@ import scala.collection.mutable.ListBuffer
 import common.WriteFile._
 import common.{ErrorLog, NoticeEvery}
 import parser.SelfMadeParser
-import net.sf.json.JSONObject;
-import net.sf.json.JSONSerializer;
 
 
 object SelfMadeToJSON {

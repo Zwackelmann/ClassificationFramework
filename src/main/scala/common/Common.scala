@@ -1,12 +1,12 @@
 package common
 
-import net.sf.json.JSONObject
-import net.sf.json.JSONArray
 import scala.collection.JavaConversions._
 import java.io.BufferedReader
 import java.io.File
 import java.io.FileReader
 import java.security.MessageDigest
+import com.alibaba.fastjson.JSONArray
+import com.alibaba.fastjson.JSONObject
 
 /**
  * A collection of some commonly used functions
@@ -16,7 +16,7 @@ object Common {
     /**
      * Escapes a string with special characters to prepare it to be written to a file
      */
-    def escape(s: String) = s.replaceAll("\\\\", "\\\\\\\\").replaceAll("'", "\\\\'").replaceAll("\"", "\\\\\"")
+    def escape(s: String) = s.replaceAll("\\\\", "\\\\\\\\").replaceAll("\"", "\\\\\"")
     
     /**
      * returns the file extension of a file name (the string after the last dot)

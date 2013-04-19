@@ -1,8 +1,6 @@
 package format.arff_json
 
 import common.Common.escape
-import net.sf.json.JSONArray
-import net.sf.json.JSONObject
 
 class DenseArffJsonInstance(id: String, mscClasses: List[String], val dataList: List[Any]) extends ArffJsonInstance(id, mscClasses) {
     import ArffJsonInstance.dataToJson
@@ -12,7 +10,6 @@ class DenseArffJsonInstance(id: String, mscClasses: List[String], val dataList: 
         "[" + (dataList.map(dataToJson(_))).mkString(",") + "]" + 
     "]"
         
-    
     def dataAt(index: Int) = dataList(index)
     def numAttributes() = dataList.size
     override def toString = toJson

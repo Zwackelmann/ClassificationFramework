@@ -1,7 +1,6 @@
 package model
 
-import net.sf.json.JSONObject
-import net.sf.json.JSONArray
+import com.alibaba.fastjson.JSONObject
 
 object Author {
     val validChars = List(

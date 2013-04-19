@@ -35,8 +35,7 @@ object AllClassesForTIBData {
                 with NormalizeVectorFilter.Appendix { 
                     val confName = "conf9"
                     override val minOcc = 3
-                },
-            NoTrainSetSelection
+                }
         )
         
         val classifiers = (for(cat <- consideredCats.map(c => CategoryIs(c + "-xx"))) yield {

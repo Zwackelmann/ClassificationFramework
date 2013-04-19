@@ -2,11 +2,10 @@ package format.arff_json
 
 import weka.core.Attribute
 import weka.core.FastVector
-import net.sf.json.JSONObject
 import scala.collection.mutable.ListBuffer
 import common.Common.jsonToScalaType
 import common.Common.escape
-import net.sf.json.JSONNull
+import com.alibaba.fastjson.JSONObject
 
 object ArffJsonAttribute {
     def apply(attribute: Attribute) = {
@@ -32,7 +31,7 @@ object ArffJsonAttribute {
         att.get("type") match {
             case "string" => new StringArffJsonAttribute(att.get("name").asInstanceOf[String])
             case "numeric" => new NumericArffJsonAttribute((att.get("name") match {
-                case n: JSONNull => "null"
+                case null => "null"
                 case x => x
             }).asInstanceOf[String])
             case "nominal" => new NominalArffJsonAttribute(att.get("name").asInstanceOf[String], jsonToScalaType(att.get("possible-values")).asInstanceOf[List[String]])

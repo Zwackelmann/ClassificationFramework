@@ -1,12 +1,10 @@
 package parser
 import java.io.BufferedReader
 import format.arff_json.ArffJsonHeader
-import net.sf.json.JSONSerializer
-import net.sf.json.JSONException
-import net.sf.json.JSONObject
-import net.sf.json.JSONArray
 import format.arff_json.ArffJsonInstance
 import common.Time
+import com.alibaba.fastjson.parser.DefaultJSONParser
+import com.alibaba.fastjson.JSONArray
 
 class ArffJsonInstancesIterator(reader: BufferedReader, header: ArffJsonHeader) extends Iterator[ArffJsonInstance] {
     var buffer: ArffJsonInstance = null
@@ -21,7 +19,7 @@ class ArffJsonInstancesIterator(reader: BufferedReader, header: ArffJsonHeader) 
             } catch {
                 case e: Exception => {
                     // println("catch: line: " + count + ", text: " + line)
-                    ArffJsonInstance(JSONSerializer.toJSON(line).asInstanceOf[JSONArray], header)
+                    ArffJsonInstance(new DefaultJSONParser(line).parse().asInstanceOf[JSONArray], header)
                 }
             }
         } else {

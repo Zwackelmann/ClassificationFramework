@@ -67,17 +67,19 @@ object InstancesMappings {
                 val cd = contentDescribable.contentDescription
                 val mappedInst = ArffJsonInstancesSource(ContentDescription(cd.base, cd.set, cd.formatHistory :+ (filterFactory, cd)))
                 if(mappedInst.isDefined) {
+                    if(verbosity >= 2) println("instances already saved => receive instances: " + contentDescribable.contentDescription)
                     mappedInst.get
                 } else {
+                    if(verbosity >= 2) println("map instances")
                     val mappedInst = filter.applyFilter(base, cat)
                     val contentDescribableMappedInstances = new ArffJsonInstancesSource() with ContentDescribable {
                         override def iterator = mappedInst.iterator
                         def header = mappedInst.header
                         val contentDescription = cd.addHistoryItem((filterFactory, cd))
                     }
-                    print("saving " + contentDescribableMappedInstances.contentDescription + "...")
+                    if(verbosity >= 2) print("saving " + contentDescribableMappedInstances.contentDescription + "...")
                     contentDescribableMappedInstances.save
-                    println("done")
+                    if(verbosity >= 2) println("done")
                     contentDescribableMappedInstances
                 }
             }

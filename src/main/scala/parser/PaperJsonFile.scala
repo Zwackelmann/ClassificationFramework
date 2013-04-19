@@ -3,10 +3,10 @@ package parser
 import java.io.File
 import model.Paper
 import model.Paper._
-import net.sf.json.JSONObject
-import net.sf.json.JSONSerializer
 import java.io.FileReader
 import java.io.BufferedReader
+import com.alibaba.fastjson.parser.DefaultJSONParser
+import com.alibaba.fastjson.JSONObject
 
 class PaperJsonFile(val file: File) {
     def this(filename: String) = this(new File(filename))
@@ -18,7 +18,7 @@ class PaperJsonFile(val file: File) {
         def bufferNext() = {
             val line = reader.readLine()
             if(line != null) {
-                buffer = Paper(JSONSerializer.toJSON(line).asInstanceOf[JSONObject])
+                buffer = Paper(new DefaultJSONParser(line).parse.asInstanceOf[JSONObject])
             } else {
                 buffer = null
             }

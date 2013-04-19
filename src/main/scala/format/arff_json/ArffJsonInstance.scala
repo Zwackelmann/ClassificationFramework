@@ -1,15 +1,25 @@
 package format.arff_json
 
-import net.sf.json.JSONArray
-import net.sf.json.JSONObject
 import common.Common.escape
 import common.Common.jsonToScalaType
 import weka.core.Attribute
 import scala.collection.JavaConversions._
 import parser.ArffJsonParser
-import net.sf.json.JSONSerializer
+import com.alibaba.fastjson.JSONArray
+import com.alibaba.fastjson.JSONObject
+import com.alibaba.fastjson.parser.DefaultJSONParser
+
 
 object ArffJsonInstance {
+    def main(args: Array[String]) {
+        val s = """[["5530038",["70-01","70Hxx","70F10","37N05"]], ["Introduction to Hamiltonian dynamical systems and the $N$-body problem. 2nd ed.", "[For the review of the 1st ed. see (1992; 0743.70006).]", ["New York, NY: Springer"], ["stability"," symmetries"," integrable systems"," perturbation theory"," KAM theory"]]]"""
+        val h = ArffJsonHeader.jsonToArffJsonHeader("""{"relation-name" : "final_format", "attributes" : [{"name" : "title", "type" : "string"}, {"name" : "abstract", "type" : "string"}, {"name" : "journals", "type" : "string"}, {"name" : "terms", "type" : "string"}]}""")
+        
+        val arr = new DefaultJSONParser(s).parse.asInstanceOf[JSONArray]
+        val i = ArffJsonInstance(arr, h)
+        println(i)
+    }
+    
     def dataToJson(d: Any): String = d match {
         case s: String => "\"" + escape(s) + "\""
         case d: Double => d.toString
@@ -34,7 +44,7 @@ object ArffJsonInstance {
     }
     
     def stringToArffJsonInstance(str: String, header: ArffJsonHeader) = {
-        apply(JSONSerializer.toJSON(str).asInstanceOf[JSONArray], header.attributes.size)
+        apply(new DefaultJSONParser(str).parse().asInstanceOf[JSONArray], header.attributes.size)
     }
     
     def apply(json: JSONArray, header: ArffJsonHeader): ArffJsonInstance = apply(json, header.attributes.size)

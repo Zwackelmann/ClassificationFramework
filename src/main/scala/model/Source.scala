@@ -1,7 +1,6 @@
 package model
 
-import net.sf.json.JSONObject
-import net.sf.json.JSONArray
+import com.alibaba.fastjson.JSONObject
 
 object Source {
     def apply(jsonObj: JSONObject) = {

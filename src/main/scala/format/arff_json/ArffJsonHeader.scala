@@ -1,15 +1,15 @@
 package format.arff_json
 
-import net.sf.json.JSONObject
-import net.sf.json.JSONArray
 import common.Common.escape
 import weka.core.Instances
-import net.sf.json.JSONSerializer
+import com.alibaba.fastjson.parser.DefaultJSONParser
+import com.alibaba.fastjson.JSONObject
+import com.alibaba.fastjson.JSONArray
 
 object ArffJsonHeader {
     def jsonToArffJsonHeader(str: String): ArffJsonHeader = {
         val json = try {
-            JSONSerializer.toJSON(str) match {
+            new DefaultJSONParser(str).parse match {
                 case o: JSONObject => o
                 case _ => throw new RuntimeException("The first line in file cannot be interpeted as a JSON object")
             }

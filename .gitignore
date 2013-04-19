@@ -33,3 +33,9 @@ data/tuning
 data_stemmed-termes/
 data_tib
 svm_lvl1.jar
+data_fiz_full/
+data_stemmed_termes_fuer_tbdb/
+fiz_full_lvl1.jar
+lib.rar
+prec-rec-graphs-stemmed-tersm
+svm.jar

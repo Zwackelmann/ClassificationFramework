@@ -11,8 +11,6 @@ import java.io.IOException
 import conversion.ArffJson2Joachims
 import common.Common.randomStream
 import format.arff_json.DenseArffJsonInstance
-import net.sf.json.JSONSerializer
-import net.sf.json.JSONArray
 import model.RawClassification
 import common.Common.FileConversion._
 import parser.ArffJsonInstancesSource

@@ -2,9 +2,6 @@ package parser
 import scala.collection.mutable.ListBuffer
 import format.arff_json.SparseArffJsonInstance
 import format.arff_json.DenseArffJsonInstance
-import net.sf.json.JSONSerializer
-import net.sf.json.JSONObject
-import net.sf.json.JSONArray
 import format.arff_json.ArffJsonInstance
 
 /**

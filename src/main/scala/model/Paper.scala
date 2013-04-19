@@ -1,12 +1,10 @@
 package model
 
-import net.sf.json.JSONObject
-import net.sf.json.JSONArray
 import common.DB
 import scala.collection.mutable.ListBuffer
-import net.sf.json.JSONObject
-import net.sf.json.JSONSerializer
-import net.sf.json.JSONNull
+import com.alibaba.fastjson.JSONObject
+import com.alibaba.fastjson.JSONArray
+import com.alibaba.fastjson.parser.DefaultJSONParser
 
 trait JSONable {
     def toJson: JSONObject
@@ -35,7 +33,7 @@ object Paper {
         
         val termArray = jsonObj.get("terms").asInstanceOf[JSONArray]
         val terms = (for(i <- 0 until termArray.size) yield termArray.get(i) match {
-            case n: JSONNull => "null"
+            case null => "null"
             case s: String => s
         }).toList
         
@@ -52,7 +50,7 @@ object Paper {
         val res = paperStmt.executeQuery()
         
         if(res.next()) {
-            val jsonObj = JSONSerializer.toJSON(res.getString(3)).asInstanceOf[JSONObject]
+            val jsonObj = new DefaultJSONParser(res.getString(3)).parse().asInstanceOf[JSONObject]
             val paper = Paper(jsonObj)
             paper
         } else {

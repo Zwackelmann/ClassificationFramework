@@ -8,14 +8,14 @@ object CategoryIs {
     def topMiddleAndLeave(topClass: String, middleClass: String, leaveClass: String): CategoryIs = CategoryIs(Some(topClass), Some(middleClass), Some(leaveClass))
     def apply(classDesc: String): CategoryIs = CategoryIs(
         Some(classDesc.substring(0, 2)), 
-        (classDesc.substring(2, 3) match {
+        (if(classDesc.length() >= 3) (classDesc.substring(2, 3) match {
             case "-" => None
             case x => Some(x.toUpperCase())
-        }),
-        (classDesc.substring(3, 5).toLowerCase() match {
+        }) else None),
+        (if(classDesc.length() == 5) (classDesc.substring(3, 5).toLowerCase() match {
             case "xx" => None
             case x => Some(classDesc.substring(3, 5).toLowerCase())
-        })
+        }) else None)
     )
 }
 

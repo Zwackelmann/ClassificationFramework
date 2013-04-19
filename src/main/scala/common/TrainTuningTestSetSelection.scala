@@ -16,8 +16,12 @@ object TrainTuningTestSetSelection {
             override def default(key: String) = 0
         }
         
-        for(inst <- base; cat <- inst.categories.filter(c => {c.substring(2, 3) != "-" && c.substring(3, 5).toLowerCase != "xx"})) {
-            map(cat) += 1
+        for(inst <- base; cat <- inst.categories) {
+            if(cat.length == 5 && cat.substring(2, 3) != "-" && cat.substring(3, 5).toLowerCase != "xx") {
+                map(cat) += 1
+            } else {
+                // TODO
+            }
         }
         
         map.toMap
@@ -109,12 +113,12 @@ object TrainTuningTestSetSelection {
                         (probabilityDistByCat, rar)
                     })
                     
-                    if(x.isEmpty) {
+                    // if(x.isEmpty) {
                         probabilityDistByTotal
-                    } else {
+                    /*} else {
                         val (probabilityDistByCat, rar) = x.maxBy(_._2)
                         (probabilityDistByCat.map(_ * rar) zip probabilityDistByTotal.map(_ * (1-rar))).map(x => x._1 + x._2)
-                    }
+                    }*/
                 }
                 
                 val t = target(probabilityDist)

@@ -51,8 +51,7 @@ object FindLabels {
                     val selection = firstLevelCat.parent
                     val confName = "conf9"
                     override val minOcc = 3
-                },
-                NoTrainSetSelection
+                }
             )
             
             println("calc first level classifiers for category " + firstLevelCat)

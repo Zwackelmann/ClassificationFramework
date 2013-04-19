@@ -1,7 +1,5 @@
 package model
 
-import net.sf.json.JSONSerializer
-import net.sf.json.JSONArray
 import format.arff_json.ArffJsonInstance
 import java.io.File
 import common.Common.FileConversion._
@@ -19,6 +17,8 @@ import parser.ArffJsonInstancesSource
 import common.Path
 import common.FileManager
 import FileManager.Protocol._
+import com.alibaba.fastjson.parser.DefaultJSONParser
+import com.alibaba.fastjson.JSONArray
 
 object RawClassification {
     class Category(val name: String) {
@@ -30,14 +30,15 @@ object RawClassification {
     val FALSE_NEGATIVE = new Category("False Negative")
     
     def apply(str: String) = {
-        val a = JSONSerializer.toJSON(str).asInstanceOf[JSONArray]
+        val a = new DefaultJSONParser(str).parse().asInstanceOf[JSONArray]
         
         val classification: Double = a.get(1) match {
             case bigDecimal: java.math.BigDecimal => bigDecimal.doubleValue()
             case d: java.lang.Double => d
             case i: java.lang.Integer => new java.lang.Double(i.toString)
         }
-        val trueClass = a.get(2) match {
+        val trueClass: Double = a.get(2) match {
+            case bd: java.math.BigDecimal => bd.doubleValue()
             case d: java.lang.Double => d
             case i: java.lang.Integer => new java.lang.Double(i.toString)
         }
@@ -449,8 +450,13 @@ object CertaintyToThresholdFunction {
             case AcceptLinesOfFile(lines) => {
                 new CertaintyToThresholdFunction(
                     lines.map(line => {
-                        val jarr = net.sf.json.JSONSerializer.toJSON(line).asInstanceOf[JSONArray]
-                        (jarr.get(0).asInstanceOf[Double], jarr.get(1).asInstanceOf[Double])
+                        val jarr = new DefaultJSONParser(line).parse().asInstanceOf[JSONArray]
+                        def toDouble(a: Object) = a match {
+                            case d: java.lang.Double => d.toDouble
+                            case bd: java.math.BigDecimal => bd.doubleValue
+                            case bd: scala.math.BigDecimal => bd.doubleValue
+                        }
+                        (toDouble(jarr.get(0)), toDouble(jarr.get(1)))
                     }).toList
                 )
             }

@@ -52,8 +52,7 @@ object AllClassesForDocument {
                             val confName = "conf9"
                             val selection = cat.parent
                             override val minOcc = 3
-                        },
-                        NoTrainSetSelection
+                        }
                     )
                     
                 case 1 | 2 => 
@@ -67,8 +66,7 @@ object AllClassesForDocument {
                             val confName = "conf9"
                             val selection = cat.parent
                             override val minOcc = 1
-                        },
-                        NoTrainSetSelection
+                        }
                     )
             }),
             CategoryIs(None, None, None),
