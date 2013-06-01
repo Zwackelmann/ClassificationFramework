@@ -27,15 +27,19 @@ import filter.ProjectionFilter
 import model.CertaintyToThresholdFunction
 import java.io.BufferedWriter
 import java.io.FileWriter
+import classifier.BalancedTrainSetSelection
+import classifier.CategoryIsMSC
+import classifier.CategorizationHierarchy
+import classifier.CategorizationHierarchy
 
 object FindLabels {
 	def main(args: Array[String]) {
 	    val corpus = ArffJsonInstancesSource("data/arffJson/corpus.json")
 	    val ((trainSet, tuningSet, testSet), c) = TrainTuningTestSetSelection.getSets(100, "min100", corpus, (0.7, 0.3, 0.0))
 	    
-        val allThirdLevelClasses = ApplyFinalClassifier.findConsideredCategories(corpus, 3, 100).map(cStr => CategoryIs(cStr))
-        val allSecondLevelClasses = ApplyFinalClassifier.findConsideredCategories(corpus, 2, 100).map(cStr => CategoryIs.topAndMiddle(cStr.substring(0, 2), cStr.substring(2, 3)))
-        val allFirstLevelClasses = ApplyFinalClassifier.findConsideredCategories(corpus, 1, 100).map(cStr => CategoryIs.top(cStr.substring(0, 2)))
+        val allThirdLevelClasses = ApplyFinalClassifier.findConsideredCategories(corpus, 3, 100).map(cStr => CategoryIsMSC(cStr))
+        val allSecondLevelClasses = ApplyFinalClassifier.findConsideredCategories(corpus, 2, 100).map(cStr => CategoryIsMSC.topAndMiddle(cStr.substring(0, 2), cStr.substring(2, 3)))
+        val allFirstLevelClasses = ApplyFinalClassifier.findConsideredCategories(corpus, 1, 100).map(cStr => CategoryIsMSC.top(cStr.substring(0, 2)))
         
         val minCertaintyThreshold = 0.5
         
@@ -51,7 +55,8 @@ object FindLabels {
                     val selection = firstLevelCat.parent
                     val confName = "conf9"
                     override val minOcc = 3
-                }
+                },
+                BalancedTrainSetSelection(Some(5000))
             )
             
             println("calc first level classifiers for category " + firstLevelCat)
@@ -116,9 +121,9 @@ object FindLabels {
 	        catFilenameExt.substring(4, 6)
 	    )
 	    
-	    (if(bottom == "__" && middle == "_") CategoryIs.top(top)
-	        else if(bottom == "__") CategoryIs.topAndMiddle(top, middle)
-	        else CategoryIs.topMiddleAndLeave(top, middle, bottom)
+	    (if(bottom == "__" && middle == "_") CategoryIsMSC.top(top)
+	        else if(bottom == "__") CategoryIsMSC.topAndMiddle(top, middle)
+	        else CategoryIsMSC.topMiddleAndLeave(top, middle, bottom)
 	    ).parent.filenameExtension
 	}
 	
@@ -130,7 +135,7 @@ object FindLabels {
 	    ) yield (t._1, t._2, (f._3, s._3, t._3))
 	}
 	
-	def classificationRun(cat: CategoryIs, trainSet: ArffJsonInstancesSource with ContentDescribable, tuningSet: ArffJsonInstancesSource with ContentDescribable, testSet: ArffJsonInstancesSource, certaintyThreshold: Double) = {
+	def classificationRun(cat: CategoryIs with CategorizationHierarchy, trainSet: ArffJsonInstancesSource with ContentDescribable, tuningSet: ArffJsonInstancesSource with ContentDescribable, testSet: ArffJsonInstancesSource, certaintyThreshold: Double) = {
 	    val (classifiers, meta, coofficients, finalThreshold, thresholds, fMeasures, certaintyFunctions) = classifiersAndCoofficients(cat, trainSet, tuningSet)
         
         val (testClassifications, certaintyFunction) = if(coofficients.isDefined) {
@@ -179,7 +184,7 @@ object FindLabels {
         })
 	}
 	
-	def classifiersAndCoofficients(cat: CategoryIs, trainSet: ArffJsonInstancesSource with ContentDescribable, tuningSet: ArffJsonInstancesSource with ContentDescribable) = {
+	def classifiersAndCoofficients(cat: CategoryIs with CategorizationHierarchy, trainSet: ArffJsonInstancesSource with ContentDescribable, tuningSet: ArffJsonInstancesSource with ContentDescribable) = {
 	    val minWordCount = cat.targetLevel match { case 1 => 3 case _ => 1 }
         val orTh = cat.targetLevel match { case 1 => 5 case _ => 2 }
         val maxTrainSetSize = 16000
@@ -304,9 +309,9 @@ object FindLabels {
         Tuple7(classifiers, meta, coofficients, finalThreshold, thresholds, fMeasures, certaintyFunctions)
 	}
 	
-	def mapSetForSVM(inst: ArffJsonInstancesSource, cat: CategoryIs, projection: String) = {
+	def mapSetForSVM(inst: ArffJsonInstancesSource, cat: CategoryIs with CategorizationHierarchy, projection: String) = {
 	    val minWordCount = cat.targetLevel match { case 1 => 3 case _ => 1 }
-	    val projectionFilter = if(projection == "tit") new ProjectionFilter(List(0)) else new ProjectionFilter(List(1))
+	    val projectionFilter = if(projection == "tit") new ProjectionFilter(Set(0)) else new ProjectionFilter(Set(1))
 	    val vectorFromDictFilter = common.ObjectToFile.readObjectFromFile(new File("data/filter/proj-" + projection + "_sel-" + cat.parent.filenameExtension + "__proj-" + projection + "_sel-" + cat.parent.filenameExtension + "_vec-conf9-min-" + minWordCount)).asInstanceOf[VectorFromDictFilter]
 	    val tfidfFilter = common.ObjectToFile.readObjectFromFile(new File("data/filter/proj-" + projection + "_sel-" + cat.parent.filenameExtension + "_vec-conf9-min-" + minWordCount + "__proj-" + projection + "_sel-" + cat.parent.filenameExtension + "_vec-conf9-min-" + minWordCount + "_tf-idf")).asInstanceOf[TfIdfFilter]
 	    val normalizeFilter = new NormalizeVectorFilter
@@ -317,10 +322,10 @@ object FindLabels {
 	    	.applyFilter(normalizeFilter)
 	}
 	
-	def mapSetForC45(inst: ArffJsonInstancesSource, cat: CategoryIs, projection: String) = {
+	def mapSetForC45(inst: ArffJsonInstancesSource, cat: CategoryIs with CategorizationHierarchy, projection: String) = {
 	    val minWordCount = cat.targetLevel match { case 1 => 3 case _ => 1 }
 	    val or = cat.targetLevel match { case 1 => 5 case _ => 2 }
-	    val projectionFilter = if(projection == "tit") new ProjectionFilter(List(0)) else new ProjectionFilter(List(1))
+	    val projectionFilter = if(projection == "tit") new ProjectionFilter(Set(0)) else new ProjectionFilter(Set(1))
 	    val vectorFromDictFilter = common.ObjectToFile.readObjectFromFile(new File("proj-" + projection + "_sel-" + cat.parent.filenameExtension + "__proj-" + projection + "_sel-" + cat.parent.filenameExtension + "_vec-conf9-min-" + minWordCount)).asInstanceOf[VectorFromDictFilter]
 	    val normalizeFilter = new NormalizeVectorFilter
 	    val orFilter = common.ObjectToFile.readObjectFromFile(new File("proj-" + projection + "_sel-" + cat.parent.filenameExtension + "_vec-conf9-min-" + minWordCount + "_norm__proj-" + projection + "_sel-" + cat.parent.filenameExtension + "_vec-conf9-min-" + minWordCount + "_norm_or-" + or + ".0-0-" + cat.filenameExtension)).asInstanceOf[OddsRatioFilter]

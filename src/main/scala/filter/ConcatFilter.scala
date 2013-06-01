@@ -31,22 +31,39 @@ class ConcatFilter(ids: List[Int]) extends GlobalFilter {
             	        (a, b) match {
             	            case (s1: String, s2: String) => s1 + " " + s2
             	            case _ => {
-            	                println("title: " + a)
-                                println("abstract: " + b)
             	                throw new RuntimeException("only Strings Exception!!")
             	            }
             	        }
             	    }
             	))
             ),
-            (header: ArffJsonHeader) => new ArffJsonHeader(
-                header.relationName, 
-                header
-                    .attributes
-                    .zip(0 until header.attributes.size-1)
-                    .filter(m => ids.contains(m._2))
-                    .map(_._1)
-            )
+            (header: ArffJsonHeader) => {
+                if(header.explicitAttributes) {
+                    ArffJsonHeader(
+                        header.relationName, 
+                        header
+                            .attributes
+                            .zip(0 until header.attributes.size-1)
+                            .filter(m => ids.contains(m._2))
+                            .map(_._1)
+                    )
+                } else {
+                    ArffJsonHeader(
+                        header.relationName, 
+                        ids.size
+                    )
+                }
+            }
+                
         )
     }
+    
+    override val trainingParams = None
 }
+
+
+
+
+
+
+

@@ -18,7 +18,7 @@ object ArffJsonInstances {
 }
 
 class ArffJsonInstances(inst: ArffJsonInstancesSource, virtualAttributes: List[Pair[ArffJsonAttribute, ArffJsonInstance => Any]] = List()) {
-    val header = inst.header
+    var header = inst.header
     
     private var _instances: Instances = {
         val arffAttributes = new FastVector()
@@ -72,7 +72,7 @@ class ArffJsonInstances(inst: ArffJsonInstancesSource, virtualAttributes: List[P
                         index -> value
                 }).toMap
                 
-                new SparseArffJsonInstance(metadata._1, metadata._2, dataMap, instances.numAttributes())
+                ArffJsonInstance(metadata._1, metadata._2, dataMap, instances.numAttributes())
             }
             
             case denseInst: Instance => {
@@ -86,7 +86,7 @@ class ArffJsonInstances(inst: ArffJsonInstancesSource, virtualAttributes: List[P
                         value
                 }).toList
                 
-                new DenseArffJsonInstance(metadata._1, metadata._2, dataList)
+                ArffJsonInstance(metadata._1, metadata._2, dataList)
             }
         }
     }
@@ -135,7 +135,7 @@ class ArffJsonInstances(inst: ArffJsonInstancesSource, virtualAttributes: List[P
         instancesMetadata(instancesCounter) = Pair(arffJsonInstance.id, arffJsonInstance.categories)
         
         val inst = arffJsonInstance match {
-            case denseInst: DenseArffJsonInstance => {                   
+            case denseInst: DenseData => {
                 var attributeIndex = 0
                 val instanceData = new Array[Double](instances.numAttributes())
                 
@@ -156,7 +156,7 @@ class ArffJsonInstances(inst: ArffJsonInstancesSource, virtualAttributes: List[P
                 new Instance(1.0, instanceData)
             }
             
-            case sparseInst: SparseArffJsonInstance => {
+            case sparseInst: SparseData => {
                 val (indexes, values) = (
                     (for(index <- 0 until virtualAttributes.size) yield {
                         val att = instances.attribute(index)
@@ -167,7 +167,7 @@ class ArffJsonInstances(inst: ArffJsonInstancesSource, virtualAttributes: List[P
                     })
                 ).sortBy(_._1).unzip
                 
-                new SparseInstance(1.0, values.toArray, indexes.toArray, header.attributes.size)
+                new SparseInstance(1.0, values.toArray, indexes.toArray, header.numAttributes)
             }
         }
         

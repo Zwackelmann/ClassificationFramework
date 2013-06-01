@@ -14,6 +14,8 @@ import common.FileManager
 import FileManager.Protocol._
 
 object TrainSetSelection {
+    import common.Common.verbosity
+    
     def preFilter(inst: ArffJsonInstance) = true
     
     def file(source: ArffJsonInstancesSource with ContentDescribable, categoryIs: CategoryIs, trainSetSelectionDef: TrainSetSelectionDefinition) = arffJsonPath / (
@@ -33,95 +35,109 @@ object TrainSetSelection {
             case Exists(false) => {
                 trainSetSelectionDef match {
                     case FixedTrainSetSelection(numTargetInst, numOtherInst) => {
-                        val groupFun = (if(categoryIs.targetLevel == 1) {
-                            ((l: List[String]) => l.map(_.substring(0, 2)).distinct)
-                        } else if(categoryIs.targetLevel == 2) {
-                            ((l: List[String]) => l.map(_.substring(0, 3)).distinct)
-                        } else if(categoryIs.targetLevel == 3) {
-                            ((l: List[String]) => l.map(_.substring(0, 5)).distinct)
+                        if(!categoryIs.isInstanceOf[CategoryIsMSC]) {
+                            throw new RuntimeException("FixedTranSetSelection is only implemented for CategoryIsMSC categories")
+                            // TODO ...
                         } else {
-                            error("")
-                        })
-                        
-                        println("collecting instances data... ")
-                        val totalInstByGroup = {
-                            val map = new mutable.HashMap[String, Int] {
-                                override def default(key: String) = 0
-                            }
+                            val mscCat = categoryIs.asInstanceOf[CategoryIsMSC]
                             
-                            for(inst <- source; if preFilter(inst)) {
-                                val groups = groupFun(inst.categories).distinct
-                                for(group <- groups) {
-                                    map(group) = map(group) + 1
+                            val groupFun = (if(mscCat.targetLevel == 1) {
+                                ((l: List[String]) => l.map(_.substring(0, 2)).distinct)
+                            } else if(mscCat.targetLevel == 2) {
+                                ((l: List[String]) => l.map(_.substring(0, 3)).distinct)
+                            } else if(mscCat.targetLevel == 3) {
+                                ((l: List[String]) => l.map(_.substring(0, 5)).distinct)
+                            } else {
+                                error("")
+                            })
+                            
+                            println("collecting instances data... ")
+                            val totalInstByGroup = {
+                                val map = new mutable.HashMap[String, Int] {
+                                    override def default(key: String) = 0
                                 }
-                            }
-                            
-                            map.toMap
-                        }
-                        println("done")
-                        
-                        println("select training instances... ")
-                        
-                        (FileManager !? WriteFile(targetFile)) match {
-                            case AcceptWriteFile(writer) => {
-                                writer.write(source.header.toJson + "\n")
                                 
-                                var numTrainingInst = 0
-                                val trainingInst = {
-                                    val currentInstByGroup = new mutable.HashMap[String, Int] {
-                                        override def default(key: String) = 0
+                                for(inst <- source; if preFilter(inst)) {
+                                    val groups = groupFun(inst.categories).distinct
+                                    for(group <- groups) {
+                                        map(group) = map(group) + 1
                                     }
+                                }
+                                
+                                map.toMap
+                            }
+                            println("done")
+                            
+                            println("select training instances... ")
+                            
+                            (FileManager !? WriteFile(targetFile)) match {
+                                case AcceptWriteFile(writer) => {
+                                    writer.write(source.header.toJson + "\n")
                                     
-                                    for(inst <- source; if preFilter(inst)) {
-                                        val targetNumInst = 
-                                            if(categoryIs(inst.categories).get) numTargetInst
-                                            else numOtherInst
-                                        
-                                        val groups = groupFun(inst.categories).distinct
-                                        
-                                        val probForInst = {
-                                            if(groups.isEmpty) {
-                                                0
-                                            } else {
-                                                val probByGroup = targetNumInst match {
-                                                    case Some(number) => groups.map(group => number.toDouble / totalInstByGroup(group))
-                                                    case None => List(groups.size.toDouble)
-                                                }
-                                                probByGroup.reduce(_ + _) / groups.size
-                                            }
+                                    var numTrainingInst = 0
+                                    val trainingInst = {
+                                        val currentInstByGroup = new mutable.HashMap[String, Int] {
+                                            override def default(key: String) = 0
                                         }
-                                        if(math.random < probForInst) {
-                                            writer.write(inst.toJson + "\n")
-                                            numTrainingInst += 1
+                                        
+                                        for(inst <- source; if preFilter(inst)) {
+                                            val targetNumInst = 
+                                                if(categoryIs.matchesForTraining(inst.categories).get) numTargetInst
+                                                else numOtherInst
                                             
-                                            val groups = groupFun(inst.categories)
-                                            for(group <- groups) {
-                                                currentInstByGroup(group) = currentInstByGroup(group) + 1
+                                            val groups = groupFun(inst.categories).distinct
+                                            
+                                            val probForInst = {
+                                                if(groups.isEmpty) {
+                                                    0
+                                                } else {
+                                                    val probByGroup = targetNumInst match {
+                                                        case Some(number) => groups.map(group => number.toDouble / totalInstByGroup(group))
+                                                        case None => List(groups.size.toDouble)
+                                                    }
+                                                    probByGroup.reduce(_ + _) / groups.size
+                                                }
+                                            }
+                                            if(math.random < probForInst) {
+                                                writer.write(inst.toJson + "\n")
+                                                numTrainingInst += 1
+                                                
+                                                val groups = groupFun(inst.categories)
+                                                for(group <- groups) {
+                                                    currentInstByGroup(group) = currentInstByGroup(group) + 1
+                                                }
                                             }
                                         }
+                                        
+                                        // println("average numInst by group: " + (currentInstByGroup.values.reduceLeft(_ + _).toDouble / currentInstByGroup.values.size))
+                                        // println(currentInstByGroup.mkString("\n"))
+                                        // buffer.toList
                                     }
+                                    writer.close()
                                     
-                                    // println("average numInst by group: " + (currentInstByGroup.values.reduceLeft(_ + _).toDouble / currentInstByGroup.values.size))
-                                    // println(currentInstByGroup.mkString("\n"))
-                                    // buffer.toList
+                                    println("done")
+                                    println("total instances for training: " + numTrainingInst)
                                 }
-                                writer.close()
-                                
-                                println("done")
-                                println("total instances for training: " + numTrainingInst)
+                                case RejectWriteFile => 
+                                case Error(msg) => throw new RuntimeException(msg)
                             }
-                            case RejectWriteFile => 
-                            case Error(msg) => throw new RuntimeException(msg)
                         }
                     }
                     
                     case BalancedTrainSetSelection(maxInst) => {
-                        val (targetInst, otherInst) = source
-                                .filter(preFilter)
-                                .filter(inst => categoryIs(inst.categories).isDefined)
-                                .partition(i => categoryIs(i.categories).get)
-                                
-                        val (numTargetInst, numOtherInst) = (targetInst.size, otherInst.size)
+                        if(verbosity >= 1) println("apply balanced train set selection")
+                        
+                        var numTargetInst = 0
+                        var numOtherInst = 0
+                        for(inst <- source.iterator) {
+                            if(preFilter(inst)) {
+                                val isCat = categoryIs.matchesForTraining(inst.categories)
+                                if(isCat.isDefined && isCat.get) numTargetInst += 1
+                                else if(isCat.isDefined) numOtherInst += 1
+                            }
+                        }
+                        
+                        if(verbosity >= 2) println("numTargetInst: " + numTargetInst + ", numOtherInst: " + numOtherInst)
                         
                         val targetSize = {
                             val tmp = math.min(numTargetInst, numOtherInst)
@@ -129,27 +145,35 @@ object TrainSetSelection {
                             else tmp
                         }
                         
-                        val instancesIterator = targetInst.iterator.filter(
-                                i => math.random < (targetSize.toDouble/numTargetInst)
-                            ) ++ otherInst.iterator.filter(
-                                i => math.random < (targetSize.toDouble/numOtherInst)
-                            )
+                        if(verbosity >= 2) println("target size per category: " + targetSize)
                         
+                        var writtenInstances1 = 0
+                        var writtenInstances2 = 0
                         (FileManager !? WriteFile(targetFile)) match {
                             case AcceptWriteFile(writer) => {
                                 writer.write(source.header.toJson + "\n")
-                                for(inst <- instancesIterator) {
-                                    writer.write(inst.toJson + "\n")
+                                for(inst <- source.iterator.filter(preFilter).filter(inst => categoryIs.matchesForTraining(inst.categories).isDefined)) {
+                                    val isCat = categoryIs.matchesForTraining(inst.categories)
+                                    if(isCat.isDefined && isCat.get && math.random < (targetSize.toDouble/numTargetInst)) {
+                                        writer.write(inst.toJson + "\n")
+                                        writtenInstances1 += 1
+                                    }
+                                    else if(isCat.isDefined && !isCat.get && math.random < (targetSize.toDouble/numOtherInst)) {
+                                        writer.write(inst.toJson + "\n")
+                                        writtenInstances2 += 1
+                                    }
                                 }
                                 writer.close()
                             }
-                            case RejectWriteFile => 
+                            case RejectWriteFile => throw new RuntimeException("could not write file")
                             case Error(msg) => throw new RuntimeException(msg)
                         }
+                        
+                        if(verbosity >= 2) println("written instances: pos: " + writtenInstances1 + ",  neg: " + writtenInstances2 + ", total: " + (writtenInstances1 + writtenInstances2))
                     }
                     
                     case MaxForEachSet(maxPositives, maxNegatives) => {
-                        val (positives, negatives) = source.filter(preFilter).partition(i => categoryIs(i.categories).get)
+                        val (positives, negatives) = source.filter(preFilter).partition(i => categoryIs.matchesForTraining(i.categories).get)
                         val (numPositives, numNegatives) = (positives.size, negatives.size)
                         
                         val positivesIterator = 
@@ -177,7 +201,7 @@ object TrainSetSelection {
                     
                     case PrioritizeMainClass(targetNumInstances) => {
                         val minimumRateNegatives = 0.25
-                        val cat = categoryIs.asInstanceOf[CategoryIs]
+                        val cat = categoryIs.asInstanceOf[CategoryIs with CategorizationHierarchy]
                         val parentCategory = cat.parent
                         val catSubstring = cat.targetLevel match {
                             case 1 => (s: String) => s.substring(0, 2)
@@ -188,8 +212,8 @@ object TrainSetSelection {
                         val (numPositivesMainClass, numPositivesSecondaryClass, numNegatives) = (
                             ((0, 0, 0) /: source)((currentTuple, currentInstance) => {
                                 if(currentInstance.categories.isEmpty) (currentTuple._1, currentTuple._2, currentTuple._3)
-                                else if(categoryIs(List(currentInstance.categories(0))).get) (currentTuple._1 + 1, currentTuple._2, currentTuple._3)
-                                else if(categoryIs(currentInstance.categories).get) (currentTuple._1, currentTuple._2 + 1, currentTuple._3)
+                                else if(categoryIs.matchesForTraining(List(currentInstance.categories(0))).get) (currentTuple._1 + 1, currentTuple._2, currentTuple._3)
+                                else if(categoryIs.matchesForTraining(currentInstance.categories).get) (currentTuple._1, currentTuple._2 + 1, currentTuple._3)
                                 else (currentTuple._1, currentTuple._2, currentTuple._3 + 1)
                             })
                         )
@@ -199,7 +223,7 @@ object TrainSetSelection {
                                 override def default(key: String) = 0
                             }
                             
-                            for(inst <- source.filter(i => !categoryIs(i.categories).get); cat <- inst.categories.filter(c => parentCategory(List(c)).get).map(c => catSubstring(c)).distinct) {
+                            for(inst <- source.filter(i => !categoryIs.matchesForTraining(i.categories).get); cat <- inst.categories.filter(c => parentCategory.matchesForTraining(List(c)).get).map(c => catSubstring(c)).distinct) {
                                 map(cat) += 1
                             }
                             
@@ -247,7 +271,7 @@ object TrainSetSelection {
                         println("target: " + targetNumPerNegativeCategory)
                         
                         def propForNegatives(categories: List[String]) = {
-                            categories.filter(c => parentCategory(List(c)).get).map(c => (targetNumPerNegativeCategory.toDouble / negativesDistribution(catSubstring(c)))).max
+                            categories.filter(c => parentCategory.matchesForTraining(List(c)).get).map(c => (targetNumPerNegativeCategory.toDouble / negativesDistribution(catSubstring(c)))).max
                         }
                         
                         val instancesIterator = if((numPositivesMainClass, numPositivesSecondaryClass, numNegatives) == (targetNumPositivesMainClass, targetNumPositivesSecondaryClass, targetNumNegatives)) {
@@ -257,8 +281,8 @@ object TrainSetSelection {
                                 if(inst.categories.isEmpty) { 
                                     false 
                                 } else { 
-    	                            if(categoryIs(List(inst.categories(0))).get) (if(math.random < (targetNumPositivesMainClass.toDouble / numPositivesMainClass)) {i += 1; true} else false)
-    	                            else if(categoryIs(inst.categories).get) (if(math.random < (targetNumPositivesSecondaryClass.toDouble / numPositivesSecondaryClass)) {j += 1; true} else false)
+    	                            if(categoryIs.matchesForTraining(List(inst.categories(0))).get) (if(math.random < (targetNumPositivesMainClass.toDouble / numPositivesMainClass)) {i += 1; true} else false)
+    	                            else if(categoryIs.matchesForTraining(inst.categories).get) (if(math.random < (targetNumPositivesSecondaryClass.toDouble / numPositivesSecondaryClass)) {j += 1; true} else false)
     	                            else (if(math.random < propForNegatives(inst.categories)) {k += 1; true} else false)
     	                        }
                             })
@@ -283,6 +307,7 @@ object TrainSetSelection {
                     case NoTrainSetSelection => throw new RuntimeException("Should not occur")
                 }
             }
+            case Exists(true) => println("file exists")
         }
         
         ArffJsonInstancesSource(

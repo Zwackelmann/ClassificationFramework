@@ -68,7 +68,7 @@ abstract class FeatureScoreing(inst: ArffJsonInstancesSource, categoryIs: Catego
                 termSet += key
             }
             
-            val isTarget = categoryIs(inst.categories)
+            val isTarget = categoryIs.matchesForTraining(inst.categories)
             if(isTarget.isDefined && isTarget.get) {
                 numTargetInst += 1
                 for((key, value) <- inst.sparseData) {

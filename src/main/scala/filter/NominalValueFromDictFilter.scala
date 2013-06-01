@@ -10,19 +10,20 @@ import java.io.BufferedWriter
 import java.io.FileWriter
 import scala.collection.mutable
 import scala.collection.JavaConversions._
-import format.arff_json.SparseArffJsonInstance
 import format.arff_json.ArffJsonHeader
 import format.arff_json.NumericArffJsonAttribute
-import format.arff_json.DenseArffJsonInstance
 import format.arff_json.NominalArffJsonAttribute
 import parser.ArffJsonInstancesSource
+import parser.ContentDescribable
 
 object NominalValueFromDictFilter {
     def apply(confName: String): FilterFactory with Loadable[_ <: Filter] = {
         confName match {
             case "conf1" => new FilterFactory() with Loadable[NominalValueFromDictFilter] {
                 def apply(trainBase: ArffJsonInstancesSource) = {
-                    val filter = new Conf1
+                    val filter = new Conf1 {
+                        override val trainingParams = Filter.trainingParams(historyAppendix, trainBase)
+                    }
                     filter.expandDict(trainBase)
                     filter
                 }
@@ -33,10 +34,9 @@ object NominalValueFromDictFilter {
         }
     }
     
-    class Conf1 extends NominalValueFromDictFilter {
+    abstract class Conf1 extends NominalValueFromDictFilter {
         override def inst2Words(inst: ArffJsonInstance) = inst.data(0).asInstanceOf[List[String]].toSeq
         override def wordFun(word: String) = word.filter(_.isLetter).toLowerCase()
-        
         override def attributeName = "journal_index"
     }
 }
@@ -63,20 +63,20 @@ abstract class NominalValueFromDictFilter extends GlobalFilter with Serializable
         source.map((inst: ArffJsonInstance) => {
             val words = inst2Words(inst)
             
-            new SparseArffJsonInstance(
+            ArffJsonInstance(
                 inst.id,
                 inst.categories,
                 words
                     .filter(w => dict.contains(wordFun(w)))
                     .map(w => word2IndexMap(wordFun(w)) -> 1.0)
                     .toMap,
-                source.header.attributes.size
+                source.header.numAttributes
             )},
             headerMapping _
         )
     }
     
-    def headerMapping(header: ArffJsonHeader) = new ArffJsonHeader(
+    def headerMapping(header: ArffJsonHeader) = ArffJsonHeader(
             header.relationName, 
             dict.toList.sortBy(s => s).map(word => new NumericArffJsonAttribute(word)).toList
         )

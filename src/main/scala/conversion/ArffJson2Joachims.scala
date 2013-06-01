@@ -3,9 +3,9 @@ package conversion
 import java.io.File
 import java.io.BufferedWriter
 import java.io.FileWriter
-import format.arff_json.DenseArffJsonInstance
-import format.arff_json.SparseArffJsonInstance
 import parser.ArffJsonInstancesSource
+import format.arff_json.DenseData
+import format.arff_json.SparseData
 
 object ArffJson2Joachims {
     private def convert(inst: ArffJsonInstancesSource, outFile: File, classFun: List[String] => String) {
@@ -15,10 +15,10 @@ object ArffJson2Joachims {
             val isClass = classFun(arffJsonInstance.categories)
             
             val data = (arffJsonInstance match {
-                case d: DenseArffJsonInstance => {
+                case d: DenseData => {
                     (1 to d.dataList.size).zip(d.dataList)
                 }
-                case s: SparseArffJsonInstance => {
+                case s: SparseData => {
                     s.dataMap.toList.sortBy(_._1)
                 }
             })

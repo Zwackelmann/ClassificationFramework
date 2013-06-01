@@ -3,8 +3,6 @@ package classifier
 import parser.ArffJsonInstancesSource
 import model.RawClassification
 import format.arff_json.ArffJsonInstance
-import format.arff_json.SparseArffJsonInstance
-import format.arff_json.DenseArffJsonInstance
 import format.arff_json.ArffJsonInstances
 import format.arff_json.NominalArffJsonAttribute
 import weka.classifiers.{Classifier => WekaInternalClassifier}
@@ -18,6 +16,10 @@ import jnisvmlight.TrainingParameters
 import jnisvmlight.SVMLightModel
 import common.FileManager
 import FileManager.Protocol._
+import format.arff_json.SparseData
+import format.arff_json.DenseData
+import format.arff_json.SparseData
+import format.arff_json.DenseData
 
 object SvmLightJniClassifier {
     SVMLightInterface.SORT_INPUT_VECTORS = false
@@ -49,7 +51,11 @@ object SvmLightJniClassifier {
     }
     
     def builtModel(mappedInst: ArffJsonInstancesSource, categoryIs: CategoryIs) = {
-        val trainData = mappedInst.map(i => inst2LabeledFeatureVector(i, categoryIs)).toArray
+        val numAttributes = mappedInst.header.numAttributes
+        val trainData: Array[LabeledFeatureVector] = (
+            mappedInst.map(i => inst2LabeledFeatureVector(i, categoryIs)).toList :+
+            dummyFeatureVector(numAttributes)
+        ).toArray
         
         val model = {
             val tp: TrainingParameters = new TrainingParameters()
@@ -62,36 +68,49 @@ object SvmLightJniClassifier {
         model
     }
     
-    def inst2LabeledFeatureVector(inst: ArffJsonInstance, categoryIs: CategoryIs) = {
+    def dummyFeatureVector(size: Int) = {
+        val indexes = (1 to size).toArray
+        val values = (1 to size).map(c => 0.0).toArray
+        new LabeledFeatureVector(-1.0, indexes, values)
+    }
+    
+    def inst2LabeledFeatureVector(inst: ArffJsonInstance, realValue: Double): LabeledFeatureVector = {
         val numNonZeroFeatures = inst match {
-            case sp: SparseArffJsonInstance => sp.dataMap.size
-            case d: DenseArffJsonInstance => d.dataList.size
+            case sp: SparseData => sp.dataMap.size
+            case d: DenseData => d.dataList.size
         }
         
-        val (indexes, values) = inst match {
-            case sp: SparseArffJsonInstance => 
-                val x = (sp.sparseData.toList.sortBy(_._1)).unzip
+        val (indexes: List[Int], values: List[Double]) = inst match {
+            case sp: SparseData => 
+                val x: Pair[List[Int], List[Double]] = (sp.sparseData.toList.sortBy(_._1)).unzip
                 (x._1.map(_ + 1), x._2)
-            case d: DenseArffJsonInstance => ((1 until (numNonZeroFeatures + 1)), d.data)
+            case d: DenseData => ((1 until (numNonZeroFeatures + 1)), d.data)
+            case x => x.getClass
         }
         
-        val isTarget = categoryIs(inst.categories)
-        new LabeledFeatureVector((if(isTarget.isDefined && isTarget.get) 1.0 else if(isTarget.isDefined) -1.0 else 0.0), indexes.toArray, values.toArray)
+        new LabeledFeatureVector(realValue, indexes.toArray, values.toArray)
+    }
+    
+    def inst2LabeledFeatureVector(inst: ArffJsonInstance, categoryIs: CategoryIs): LabeledFeatureVector = {
+        val isTarget = categoryIs.matchesForTraining(inst.categories)
+        inst2LabeledFeatureVector(inst, (if(isTarget.isDefined && isTarget.get) 1.0 else if(isTarget.isDefined) -1.0 else 0.0))
     }
 }
 
 class SvmLightJniClassifier(val model: SVMLightModel, val trainBaseCD: Option[ContentDescription], categoryIs: CategoryIs, parent: Option[Learner]) extends Classifier(trainBaseCD, categoryIs, parent) {
     import SvmLightJniClassifier._
     
-    def calculateClassifications(mappedInst: ArffJsonInstancesSource) = mappedInst.map(inst => { 
-    	val isTarget = targetClassDef(inst.categories)
-        
-        new RawClassification(
-    	        inst.id, 
-    	        model.classify(inst2LabeledFeatureVector(inst, targetClassDef)), 
-    	        (if(isTarget.isDefined && isTarget.get) 1.0 else if(isTarget.isDefined) -1.0 else 0.0)
-        )}
-    )
+    def calculateClassifications(mappedInst: ArffJsonInstancesSource) = {
+        mappedInst.map(inst => { 
+            val isTarget = targetClassDef.matchesForTesting(inst.categories)
+            
+            new RawClassification(
+        	        inst.id, 
+        	        model.classify(inst2LabeledFeatureVector(inst, targetClassDef)), 
+        	        (if(isTarget.isDefined && isTarget.get) 1.0 else if(isTarget.isDefined) -1.0 else 0.0)
+            )}
+        )
+    }
     
     def save(fullFilename: String) {
         val objToSave = Array[Any](

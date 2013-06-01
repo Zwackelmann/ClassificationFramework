@@ -7,7 +7,7 @@ import java.io.FileInputStream
 
 object ExternalAlgorithmApplier {
     val commands = new Properties()
-    val is = new FileInputStream("data/util/commands.properties")
+    val is = new FileInputStream("util/commands.properties")
     commands.load(is)
     is.close()
     

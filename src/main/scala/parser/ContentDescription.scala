@@ -40,7 +40,7 @@ case class ContentDescription(val base: String, val set: ContentDescription.Set,
     def toSet(set: ContentDescription.Set) = ContentDescription(base, set, formatHistory)
     def withHistoryFactories(formatHistory: List[(FilterFactory, ContentDescription)]) = ContentDescription(base, set, formatHistory)
     
-    override def toString = "ContentDescription(" + base + ", " + set + ", " + formatHistory.map(_._1.historyAppendix) + ", " + formatHistory.map(_._2.toString) + ")"
+    override def toString = "ContentDescription(" + base + ", " + set + ", " + formatHistory.map(_._1.historyAppendix) + ")"
 }
 
 

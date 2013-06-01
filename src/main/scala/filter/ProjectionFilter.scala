@@ -6,7 +6,7 @@ import parser.History
 import classifier.CategoryIs
 
 object ProjectionFilter {
-    def apply(ids: List[Int], projectionDesc: String) = new FilterFactory {
+    def apply(ids: Set[Int], projectionDesc: String) = new FilterFactory {
         val _ids = ids
         val historyAppendix = "proj-" + projectionDesc
         
@@ -17,25 +17,36 @@ object ProjectionFilter {
     @serializable
     trait Appendix extends History {
         val projection: Pair[Int, String]
-        abstract override def apply(categoryIs: CategoryIs) = super.apply(categoryIs) :+ ProjectionFilter(List(projection._1), projection._2)
+        abstract override def apply(categoryIs: CategoryIs) = super.apply(categoryIs) :+ ProjectionFilter(Set(projection._1), projection._2)
     }
 }
 
 @serializable
-class ProjectionFilter(ids: List[Int]) extends GlobalFilter {
+class ProjectionFilter(ids: Set[Int]) extends GlobalFilter {
     def applyFilter(source: ArffJsonInstancesSource) = {
         source.map(
             ((inst: ArffJsonInstance) => inst.project(ids)),
-            (header: ArffJsonHeader) => new ArffJsonHeader(
-                header.relationName, 
-                header
-                    .attributes
-                    .zip(0 until header.attributes.size-1)
-                    .filter(m => ids.contains(m._2))
-                    .map(_._1)
-            )
+            (header: ArffJsonHeader) => {
+                if(header.explicitAttributes) {
+                    ArffJsonHeader(
+                        header.relationName, 
+                        header
+                            .attributes
+                            .zip(0 until header.attributes.size-1)
+                            .filter(m => ids.contains(m._2))
+                            .map(_._1)
+                    )
+                } else {
+                    ArffJsonHeader(
+                        header.relationName, 
+                        ids.size
+                    )
+                }
+            }
         )
     }
+    
+    override val trainingParams = None
 }
 
 

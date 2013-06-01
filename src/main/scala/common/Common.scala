@@ -58,9 +58,9 @@ object Common {
                 (for(key <- keyIter) yield (key -> jsonToScalaType(obj.get(key)))).toMap
             }
             case s: String => s
-            case i: Int => i
+            case i: Int => i.toDouble
             case d: Double => d
-            case _ => throw new RuntimeException()
+            case bd: java.math.BigDecimal => bd.doubleValue
         }
     }
     
@@ -144,7 +144,7 @@ object Common {
     }
     
     import FileConversion._
-    def topClasses = new File("data/util/top_classes.txt").lines.toList
+    def topClasses = new File("util/top_classes.txt").lines.toList
     
     def hash(str: String) = {
         val md = MessageDigest.getInstance("SHA-256")

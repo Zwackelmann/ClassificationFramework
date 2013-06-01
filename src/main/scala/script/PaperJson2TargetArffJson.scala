@@ -2,11 +2,11 @@ package script
 import java.io.File
 import conversion.Json2ArffJson
 import model.Paper
-import format.arff_json.DenseArffJsonInstance
 import format.arff_json.ArffJsonHeader
 import format.arff_json.StringArffJsonAttribute
 import format.arff_json.StringArffJsonAttribute
 import model.DetailledSource
+import format.arff_json.ArffJsonInstance
 
 object PaperJson2TargetArffJson {
     def main(args: Array[String]) {
@@ -21,24 +21,24 @@ object PaperJson2TargetArffJson {
 
 class PaperJson2TargetArffJson(inFile: File, outFile: File) extends Json2ArffJson(inFile, outFile) {
     def paperToArffJsonInstance(paper: Paper) = {
-        new DenseArffJsonInstance(
-            dataList = List(
+        ArffJsonInstance(
+            paper.an._1 + "." + paper.an._2,
+            paper.mscClasses,
+            List(
                 paper.title, 
                 paper.abstractText, 
-                paper.sources.flatMap(_ match {
+                paper.sources.flatMap(source => source match {
                     case d: DetailledSource => List(d.journal)
                     case s => List()
                 }),
                 paper.terms
-            ),
-            id = paper.an._1 + "." + paper.an._2,
-            mscClasses = paper.mscClasses
+            )
         )
     }
     
-    def header = new ArffJsonHeader(
-        relationName = "final_format",
-        attributes = List(
+    def header = ArffJsonHeader(
+        "final_format",
+        List(
             new StringArffJsonAttribute("title"), 
             new StringArffJsonAttribute("abstract"), 
             new StringArffJsonAttribute("journals"),

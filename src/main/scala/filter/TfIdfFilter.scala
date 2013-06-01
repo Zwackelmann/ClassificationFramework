@@ -3,7 +3,6 @@ import format.arff_json.ArffJsonInstance
 import format.arff_json.ArffJsonHeader
 import scala.collection.mutable.HashMap
 import java.io.File
-import format.arff_json.SparseArffJsonInstance
 import java.io.FileReader
 import parser.ArffJsonInstancesSource
 import classifier.CategoryIs
@@ -11,7 +10,9 @@ import parser.History
 
 object TfIdfFilter {
     def apply() = new FilterFactory with Loadable[TfIdfFilter] {
-        def apply(trainBase: ArffJsonInstancesSource) = new TfIdfFilter(trainBase)
+        def apply(trainBase: ArffJsonInstancesSource) = new TfIdfFilter(trainBase) {
+            override val trainingParams = Filter.trainingParams(historyAppendix, trainBase)
+        }
         val historyAppendix = "tf-idf"
     }
     
@@ -24,7 +25,7 @@ object TfIdfFilter {
 
 
 @serializable
-class TfIdfFilter(source: ArffJsonInstancesSource) extends GlobalFilter {
+abstract class TfIdfFilter(source: ArffJsonInstancesSource) extends GlobalFilter {
     val (tf, numDocuments) = {
         val tf = new HashMap[Int, Int] {
             override def default(key: Int) = 0
@@ -51,7 +52,7 @@ class TfIdfFilter(source: ArffJsonInstancesSource) extends GlobalFilter {
                     }
                 }
                 
-                new SparseArffJsonInstance(inst.id, inst.categories, data, inst.numAttributes())
+                ArffJsonInstance(inst.id, inst.categories, data, inst.numAttributes())
             }),
             headerFun = header => header
         )

@@ -4,7 +4,6 @@ import format.arff_json.ArffJsonInstance
 import format.arff_json.ArffJsonHeader
 import scala.collection.mutable.HashMap
 import java.io.File
-import format.arff_json.SparseArffJsonInstance
 import java.io.FileReader
 import parser.ArffJsonInstancesSource
 import parser.ArffJsonInstancesSource
@@ -13,7 +12,9 @@ import classifier.CategoryIs
 
 object MostFrequentTermsFilter {
     def apply(numFeatures: Int) = new FilterFactory with Loadable[MostFrequentTermsFilter] {
-        def apply(trainBase: ArffJsonInstancesSource) = new MostFrequentTermsFilter(trainBase, numFeatures)
+        def apply(trainBase: ArffJsonInstancesSource) = new MostFrequentTermsFilter(trainBase, numFeatures) {
+            override val trainingParams = Filter.trainingParams(historyAppendix, trainBase)
+        }
         val historyAppendix = "mf-" + numFeatures
     }
     
@@ -25,7 +26,7 @@ object MostFrequentTermsFilter {
 }
 
 @serializable
-class MostFrequentTermsFilter(source: ArffJsonInstancesSource, val numFeatures: Int) extends GlobalFilter {
+abstract class MostFrequentTermsFilter(source: ArffJsonInstancesSource, val numFeatures: Int) extends GlobalFilter {
     val targetIds = {
         val tf = new HashMap[Int, Int] {
             override def default(key: Int) = 0
@@ -42,7 +43,7 @@ class MostFrequentTermsFilter(source: ArffJsonInstancesSource, val numFeatures: 
     
     def applyFilter(source: ArffJsonInstancesSource) = {
         source.project(
-            targetIds
+            targetIds.toSet
         )
     }
 }

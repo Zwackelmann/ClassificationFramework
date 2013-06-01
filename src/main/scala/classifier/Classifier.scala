@@ -34,14 +34,14 @@ object Classifier {
         filteredAndGrouped(TRUE_POSITIVE).size.toDouble / (filteredAndGrouped(TRUE_POSITIVE).size + filteredAndGrouped(FALSE_NEGATIVE).size)
     }
     
-    def fMeasure(classifications: Iterable[RawClassification], alpha: Double, certaintyThreshold: Double = 0.0) = {
+    def fMeasure(classifications: Iterable[RawClassification], alpha: Double) = {
         val prec = precision(classifications)
         val rec = recall(classifications)
         
         ((1 + alpha) * prec * rec) / ((alpha * prec) + rec)
     }
         
-    def report(classifications: Iterable[RawClassification], certaintyThreshold: Double = 0.0) {
+    def report(classifications: Iterable[RawClassification]) {
         println("precision: %.5f".format(precision(classifications)))
         println("recall: %.5f".format(recall(classifications)))
         

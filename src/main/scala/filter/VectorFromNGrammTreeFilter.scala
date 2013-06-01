@@ -2,12 +2,10 @@ package filter
 import format.arff_json.ArffJsonInstance
 import parser.ArffJsonInstancesSource
 import java.util.TreeMap
-import format.arff_json.SparseArffJsonInstance
 import format.arff_json.ArffJsonHeader
 import format.arff_json.NumericArffJsonAttribute
 import java.io.File
 import format.arff_json.ArffJsonInstance
-import format.arff_json.DenseArffJsonInstance
 import parser.ContentDescription
 import common.Common.FileConversion._
 
@@ -18,7 +16,9 @@ object VectorFromNGramTreeFilter {
         new FilterFactory with Loadable[VectorFromNGramTreeFilter] {
             def apply(trainBase: ArffJsonInstancesSource) = {
                 val filter = confName match {
-                    case "conf1" => new Conf1(nGrams)
+                    case "conf1" => new Conf1(nGrams) {
+                        override val trainingParams = Filter.trainingParams(historyAppendix, trainBase)
+                    }
                     case _ => throw new RuntimeException("Unknown VectorFromNGrammTreeFilter configuration: " + confName)
                 }
                 filter
@@ -31,7 +31,7 @@ object VectorFromNGramTreeFilter {
     def apply(confName: String, nGrammFile: File): FilterFactory = apply(confName, nGrammFile.lines.map(line => line.split("\\s+").toList))
     
     @serializable
-    class Conf1(nGrams: Iterable[List[String]]) extends VectorFromNGramTreeFilter(nGrams) {
+    abstract class Conf1(nGrams: Iterable[List[String]]) extends VectorFromNGramTreeFilter(nGrams) {
         val wordTransformFunction = (word: String) => stemmer.stem(word
             .filter(c => c.isDigit || c.isLetter)
             .toLowerCase()
@@ -74,9 +74,9 @@ abstract class VectorFromNGramTreeFilter(nGrams: Iterable[List[String]]) extends
                 }
                 val ids = fun(inst2Words(inst), List())
                 val data = ids.groupBy(a => a).map(a => a._1 -> a._2.size.toDouble)
-                new SparseArffJsonInstance(inst.id, inst.categories, data.toMap, dict.nGramSet.size)
+                ArffJsonInstance(inst.id, inst.categories, data.toMap, dict.nGramSet.size)
             }),
-            headerFun = header => new ArffJsonHeader(
+            headerFun = header => ArffJsonHeader(
                 header.relationName, 
                 dict.sortedNGramList.map(w => new NumericArffJsonAttribute(w.mkString("+"))).toList
             )

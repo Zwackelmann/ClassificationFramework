@@ -369,6 +369,12 @@ class RawClassification(val id: String, val classification: Double, val realValu
     def trueNegative = classification < 0 && realValue < 0
     def falseNegative = classification < 0 && realValue >= 0
     
+    def isPositive = realValue >= 0
+    def isNegative = !isPositive
+    
+    def isClassifiedPositive = classification >= 0
+    def isClassifiedNegative = !isClassifiedPositive
+    
     def hit = truePositive || trueNegative
     def miss = falsePositive || falseNegative
     

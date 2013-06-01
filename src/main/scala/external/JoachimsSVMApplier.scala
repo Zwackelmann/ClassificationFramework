@@ -10,7 +10,6 @@ import format.arff_json.ArffJsonInstance
 import java.io.IOException
 import conversion.ArffJson2Joachims
 import common.Common.randomStream
-import format.arff_json.DenseArffJsonInstance
 import model.RawClassification
 import common.Common.FileConversion._
 import parser.ArffJsonInstancesSource
@@ -42,7 +41,7 @@ object JoachimsSVMLearnApplier extends ExternalAlgorithmApplier("svm_learn") {
      *     MSC class 35 to positive you could pass:
      *     <pre> (mscClasses) => mscClasses.exists(_.substring(0, 2) == "35")</pre>
      */
-    def apply(options: Map[String, List[String]], inst: ArffJsonInstancesSource, outFile: File, classFun: List[String] => Option[Boolean]) {
+    def apply(options: Map[String, List[String]], inst: ArffJsonInstancesSource, outFile: File, classFun: CategoryIs) {
         // println("Building custom format")
         
         val tmpFile = {
@@ -51,7 +50,7 @@ object JoachimsSVMLearnApplier extends ExternalAlgorithmApplier("svm_learn") {
             File.createTempFile(filename, null)
         }
         
-        ArffJson2Joachims(inst, tmpFile, classFun)
+        ArffJson2Joachims(inst, tmpFile, classFun.matchesForTraining _)
         
         // println("Executing joachims svm learn:")
         val cmd = List(
@@ -206,7 +205,7 @@ class JoachimsSVMClassifier(_options: Map[String, List[String]], _modelFilename:
                 options, 
                 mappedInst, 
                 modelFile, 
-                categoryIs
+                categoryIs.matchesForTesting _
             ) 
         }
     }

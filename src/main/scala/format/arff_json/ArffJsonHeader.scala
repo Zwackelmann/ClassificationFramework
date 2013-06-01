@@ -19,35 +19,78 @@ object ArffJsonHeader {
     }
     
     def jsonToArffJsonHeader(obj: JSONObject): ArffJsonHeader = {
-        def assertAtt(name: String) = {
+        def getAtt(name: String) = {
             obj.get(name) match {
-                case null => throw new RuntimeException("The File does not contain a valid ArffJson header")
-                case o => o
+                case null => None
+                case o => Some(o)
             }
         }
         
-        val relationName = assertAtt("relation-name").asInstanceOf[String]
-        val jsonAttributes = assertAtt("attributes").asInstanceOf[JSONArray]
-
-        val attributes = (for(i <- 0 until jsonAttributes.size()) yield {
-            ArffJsonAttribute.jsonToArffJsonAttribute(
-                jsonAttributes.get(i).asInstanceOf[JSONObject]
-            )
-        }).toList
+        val relationName = getAtt("relation-name")
+        val attributes = getAtt("attributes")
+        val numAttributes = getAtt("num-attributes")
         
-        new ArffJsonHeader(relationName, attributes)
+        (relationName, attributes, numAttributes) match {
+            case (Some(name: String), Some(jArr: JSONArray), None) => {
+                val attributes = (for(i <- 0 until jArr.size()) yield {
+                    ArffJsonAttribute.jsonToArffJsonAttribute(
+                        jArr.get(i).asInstanceOf[JSONObject]
+                    )
+                }).toList
+                
+                ArffJsonHeader(name, attributes)
+            }
+            
+            case (Some(name: String), None, Some(numAtts: Integer)) => {
+                ArffJsonHeader(name, numAtts)
+            }
+            case (a, b, c) => throw new RuntimeException("could not match " + (a, b, c))
+        }
     }
+    
+    def apply(_relationName: String, _attributes: Iterable[ArffJsonAttribute]) = new ArffJsonHeader {
+        val relationName = _relationName
+        val atts = _attributes.toIndexedSeq
+        def attribute(index: Int) = atts(index)
+        val attributes = _attributes
+        lazy val numAttributes = _attributes.size
+        val explicitAttributes = true
+        
+        def toJson = "{" +
+            "\"relation-name\" : \"" + escape(relationName) + "\", " +
+            "\"attributes\" : [" + _attributes.map(_.toJson).mkString(", ") + "]" +
+        "}"
+    }
+    
+    def apply(_relationName: String, _numAttributes: Int) = new ArffJsonHeader {
+        val relationName = _relationName
+        val numAttributes = _numAttributes
+        def attributes = (0 until numAttributes) map {i => new NumericArffJsonAttribute(i.toString)}
+        def attribute(index: Int) = new NumericArffJsonAttribute(index.toString)
+        val explicitAttributes = false
+        
+        def toJson = "{" +
+            "\"relation-name\" : \"" + escape(relationName) + "\", " +
+            "\"num-attributes\" : " + numAttributes +
+        "}"
+    }
+    
+    def apply(_numAttributes: Int): ArffJsonHeader = apply("relation-" + (common.Common.randomStream.take(10).mkString), _numAttributes)
 }
 
-class ArffJsonHeader(var relationName: String, var attributes: List[ArffJsonAttribute]) {
-    def toJson = "{" +
-        "\"relation-name\" : \"" + escape(relationName) + "\", " +
-        "\"attributes\" : [" + attributes.map(_.toJson).mkString(", ") + "]" +
-    "}"
-        
-    def adeptToInstances(instances: Instances) {
-        relationName = instances.relationName()
-        attributes = (for(i <- 0 until instances.numAttributes()) yield ArffJsonAttribute(instances.attribute(i))).toList
+trait ArffJsonHeader {
+    def relationName: String
+    def attributes: Iterable[ArffJsonAttribute]
+    def attribute(index: Int): ArffJsonAttribute
+    def numAttributes: Int
+    def toJson: String
+    val explicitAttributes: Boolean
+    
+    def adeptToInstances(instances: Instances) = {
+        ArffJsonHeader(
+            instances.relationName(),
+            (for(i <- 0 until instances.numAttributes()) yield ArffJsonAttribute(instances.attribute(i))).toList
+        )
     }
     
     override def equals(a: Any) = a match {

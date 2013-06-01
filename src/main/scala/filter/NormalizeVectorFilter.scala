@@ -1,10 +1,10 @@
 package filter
 import parser.ArffJsonInstancesSource
-import format.arff_json.SparseArffJsonInstance
 import java.io.File
 import format.arff_json.ArffJsonInstance
 import parser.History
 import classifier.CategoryIs
+import format.arff_json.ArffJsonHeader
 
 object NormalizeVectorFilter {
     def apply() = {
@@ -18,23 +18,46 @@ object NormalizeVectorFilter {
     trait Appendix extends History {
         abstract override def apply(categoryIs: CategoryIs) = super.apply(categoryIs) :+ NormalizeVectorFilter()
     }
+    
+    def main(args: Array[String]) {
+        val source = ArffJsonInstancesSource(List(
+            ArffJsonInstance("1", List("a", "b"), List(1.0, 2.5, -2.4)),
+            ArffJsonInstance("2", List("a", "c"), List(3.45, 0.0, 0.1)),
+            ArffJsonInstance("3", List("b"), List(-1.4, -2.5, -100.0))
+        ),
+        ArffJsonHeader(3))
+        
+        println(new NormalizeVectorFilter().applyFilter(source).toList.mkString("\n"))
+    }
 }
 
 class NormalizeVectorFilter() extends GlobalFilter {
+    def norm(inst: ArffJsonInstance) = if(inst.sparseData.isEmpty) 0.0
+        else math.sqrt(inst.sparseData.values.map(a => a*a).reduceLeft(_ + _))
+    
     def applyFilter(source: ArffJsonInstancesSource) = {
-        
         source.map(
             elemFun = (inst: ArffJsonInstance) => {
-                val len = math.sqrt((0.0 /: inst.sparseData.map(_._2).map(a => a*a))(_ + _))
+                val len = norm(inst)
                 val data = if(len != 0) {
-                    inst.sparseData.map(kv => kv._1 -> kv._2.asInstanceOf[Double] / len)
+                    inst.sparseData.map(kv => kv._1 -> kv._2 / len)
                 } else {
                     Map[Int, Double]()
                 }
                 
-                new SparseArffJsonInstance(inst.id, inst.categories, data, inst.numAttributes())
+                ArffJsonInstance(inst.id, inst.categories, data, inst.numAttributes())
             },
             headerFun = header => header
         )
     }
+    
+    override val trainingParams = None
 }
+
+
+
+
+
+
+
+

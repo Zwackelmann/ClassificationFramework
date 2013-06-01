@@ -129,7 +129,8 @@ object ArffJsonInstancesSource {
                     case _ => throw new RuntimeException("The first line in file cannot be interpeted as a JSON object")
                 }
             } catch {
-                case jsonEx: JSONException => throw new RuntimeException("The first line in file does not contain a valid JSON string")
+                case jsonEx: JSONException => 
+                    throw jsonEx
                 case e: Throwable => throw e
             }
             r.close()
@@ -177,7 +178,7 @@ trait ArffJsonInstancesSource extends Iterable[ArffJsonInstance] {
         filter.applyFilter(this, categoryIs)
     }
     
-    def numAttributes = header.attributes.size
+    def numAttributes = header.numAttributes
     
     lazy val numInstances = iterator.size
     
@@ -227,16 +228,23 @@ trait ArffJsonInstancesSource extends Iterable[ArffJsonInstance] {
         }
     }
     
-    def project(ids: List[Int]): ArffJsonInstancesSource = {
+    def project(ids: Set[Int]): ArffJsonInstancesSource = {
         val thisInst = this
         
         new ArffJsonInstancesSource {
             def iterator = thisInst.iterator.map(inst => inst.project(ids))
             
-            val _header = new ArffJsonHeader(
-                thisInst.header.relationName, 
-                ids.map(id => thisInst.header.attributes(id))
-            )
+            val _header = if(thisInst.header.explicitAttributes) {
+                ArffJsonHeader(
+                    thisInst.header.relationName, 
+                    ids.map(id => thisInst.header.attribute(id))
+                )
+            } else {
+                ArffJsonHeader(
+                    thisInst.header.relationName, 
+                    ids.size
+                )
+            }
             
             def header = _header
         }
@@ -253,13 +261,13 @@ trait ArffJsonInstancesSource extends Iterable[ArffJsonInstance] {
     } 
     
     def ++(inst: ArffJsonInstancesSource) = {
-        require(this.header.attributes == inst.header.attributes, "Headers do not match in concatenation")
+        require(this.header.numAttributes == inst.header.numAttributes, "Headers do not match in concatenation")
         
         val thisInst = this
         new ArffJsonInstancesSource {
             def iterator = thisInst.iterator ++ inst.iterator
             
-            val _header = new ArffJsonHeader(
+            val _header = ArffJsonHeader(
                 thisInst.header.relationName + " ++ " + inst.header.relationName, 
                 thisInst.header.attributes
             )

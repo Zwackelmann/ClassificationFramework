@@ -93,10 +93,8 @@ object InstancesMappings {
         if(targetFilters.isEmpty) {
             (base, List())
         } else if(targetFilters.size == 1) {
-            
             val filterFactory = targetFilters.last
             val (mappedInst, filter) = getInstancesAndFilter(base, filterFactory, cat)
-            println("mappedInst and filter")
             (mappedInst, List(filter))
         } else {
             val (baseInst, appliedFilters) = getInstancesAndFilters(base, targetFilters.dropRight(1), cat)
@@ -128,19 +126,29 @@ object InstancesMappings {
                         if(describableTrainBase.contentDescription.base == describableInstBase.contentDescription.base && 
                                 describableTrainBase.contentDescription.set == describableInstBase.contentDescription.set
                             ) {
-                            println("train base and target base are the same => just return mappedInstances")
+                            if(verbosity >= 2) println("train base and target base are the same => just return mappedInstances")
                             mappedInst
                         } else {
-                            val mappedInst = ((targetInstBase /: filters)((oldInst, filter) => filter.applyFilter(oldInst, cat)))
+                            val (mappedInst, _) = (((describableInstBase, describableTrainBase.contentDescription) /: (filters zip targetFilters))((oldInstWithTrainCd, filterWithFactory) => {
+                                    val (filter, factory) = filterWithFactory
+                                    val (oldInst, trainBaseCd) = oldInstWithTrainCd
+                                    
+                                    val mappedInst = filter.applyFilter(oldInst, cat)
+                                    
+                                    val contentDescribableMappedInst = new ArffJsonInstancesSource() with ContentDescribable {
+                                        override def iterator = mappedInst.iterator
+                                        def header = mappedInst.header
+                                        val contentDescription = oldInst.contentDescription.addHistoryItem(factory, trainBaseCd)
+                                    }
+                                    val newTrainCd = trainBaseCd.addHistoryItem(factory, trainBaseCd)
+                                    
+                                    (contentDescribableMappedInst, newTrainCd)
+                                })
+                            )
                             
-                            val contentDescribableMappedInst = new ArffJsonInstancesSource() with ContentDescribable {
-                                override def iterator = mappedInst.iterator
-                                def header = mappedInst.header
-                                val contentDescription = targetCd
-                            }
-                            
-                            contentDescribableMappedInst.save()
-                            contentDescribableMappedInst
+                            println("save mappedInstances: " + mappedInst.contentDescription)
+                            mappedInst.save()
+                            mappedInst
                         }
                     }
                 }

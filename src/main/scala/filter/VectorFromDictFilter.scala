@@ -9,7 +9,6 @@ import java.io.BufferedWriter
 import java.io.FileWriter
 import scala.collection.mutable
 import scala.collection.JavaConversions._
-import format.arff_json.SparseArffJsonInstance
 import format.arff_json.ArffJsonHeader
 import format.arff_json.NumericArffJsonAttribute
 import weka.core.stemmers.SnowballStemmer
@@ -24,19 +23,45 @@ object VectorFromDictFilter {
         new FilterFactory with Loadable[VectorFromDictFilter] {
             def apply(trainBase: ArffJsonInstancesSource) = {
                 val filter = confName match {
-                    case "conf1" => new Conf1(minOcc)
-                    case "conf2" => new Conf2(minOcc)
-                    case "conf3" => new Conf3(minOcc)
-                    case "conf4" => new Conf4(minOcc)
-                    case "conf5" => new Conf5(minOcc)
-                    case "conf6" => new Conf6(minOcc)
-                    case "conf7" => new Conf7(minOcc)
-                    case "conf8" => new Conf8(minOcc)
-                    case "conf9" => new Conf9(minOcc)
-                    case "conf10" => new Conf10(minOcc)
-                    case "conf11" => new Conf11(minOcc)
-                    case "conf12" => new Conf12(minOcc)
-                    case "conf13" => new Conf13(minOcc)
+                    case "conf1" => new Conf1(minOcc) {
+                        override val trainingParams = Filter.trainingParams(historyAppendix, trainBase)
+                    }
+                    case "conf2" => new Conf2(minOcc) {
+                        override val trainingParams = Filter.trainingParams(historyAppendix, trainBase)
+                    }
+                    case "conf3" => new Conf3(minOcc) {
+                        override val trainingParams = Filter.trainingParams(historyAppendix, trainBase)
+                    }
+                    case "conf4" => new Conf4(minOcc) {
+                        override val trainingParams = Filter.trainingParams(historyAppendix, trainBase)
+                    }
+                    case "conf5" => new Conf5(minOcc) {
+                        override val trainingParams = Filter.trainingParams(historyAppendix, trainBase)
+                    }
+                    case "conf6" => new Conf6(minOcc) {
+                        override val trainingParams = Filter.trainingParams(historyAppendix, trainBase)
+                    }
+                    case "conf7" => new Conf7(minOcc) {
+                        override val trainingParams = Filter.trainingParams(historyAppendix, trainBase)
+                    }
+                    case "conf8" => new Conf8(minOcc) {
+                        override val trainingParams = Filter.trainingParams(historyAppendix, trainBase)
+                    }
+                    case "conf9" => new Conf9(minOcc) {
+                        override val trainingParams = Filter.trainingParams(historyAppendix, trainBase)
+                    }
+                    case "conf10" => new Conf10(minOcc) {
+                        override val trainingParams = Filter.trainingParams(historyAppendix, trainBase)
+                    }
+                    case "conf11" => new Conf11(minOcc) {
+                        override val trainingParams = Filter.trainingParams(historyAppendix, trainBase)
+                    }
+                    case "conf12" => new Conf12(minOcc) {
+                        override val trainingParams = Filter.trainingParams(historyAppendix, trainBase)
+                    }
+                    case "conf13" => new Conf13(minOcc) {
+                        override val trainingParams = Filter.trainingParams(historyAppendix, trainBase)
+                    }
                     case _ => throw new RuntimeException("Unknown VectorFromDictFilter configuration: " + confName)
                 }
                 filter.buildDict(trainBase)
@@ -47,6 +72,24 @@ object VectorFromDictFilter {
         }
     }
     
+    def main(args: Array[String]) {
+        val source = ArffJsonInstancesSource(List(
+            ArffJsonInstance("1", List("a", "b"), List("Reconnection is a global bifurcation of the invariant manifolds of two or more distinct hyperbolic orbits of a non-twist area-preserving map of the annulus, having the same rotation number. We show that for a generic perturbation of an integrable non-twist area-preserving map there exist two possible scenarios of reconnection. At the threshold of reconnection the involved hyperbolic orbits are connected.\\par The threshold of reconnection is defined in terms of the action values on the hyperbolic orbits which reconnect, action being a real-valued function constructed from a primitive function of the map.")),
+            ArffJsonInstance("2", List("a", "c"), List("In J. Symb. Log. 33, 27--38 (1968; Zbl 0155.01403), {\\it R. A. Bull} gave completeness proofs for three axiom systems with respect to tense logic with time linear and rational, real and integral. The associated varieties, Dens, Cont and Disc, are generated by algebras with frames $\\langle \\Bbb Q, <, > \\rangle, \\langle \\Bbb R, <, >\\rangle$ and $\\langle \\Bbb Z, <, >\\rangle$, respectively. In this paper we consider the subvariety $\\cal V$ generated by the finite members of Disc. We prove that $\\cal V$ is locally finite and we determine its lattice of subvarieties. We also prove that $\\cal V = \\text{Disc} \\cap \\text{Dens} = \\text{Disc} \\cap \\text{Cont}$.")),
+            ArffJsonInstance("3", List("b"), List("For the first edition (1997) see Zbl 0906.60001, where a detailed review can be found. In the 2nd edition some sections of Part I are omitted, and a new chapter is devoted to volatility risk. Hedging of plain-vanilla options and valuation of exotic options are not limited to the Black-Scholes framework with constant volatility. Stochastic volatility also reappears in the second part of the book, which has been revised fundamentally. The analysis of the various interest-rate models available is more detailed than in the 1st edition."))
+        ),
+        ArffJsonHeader(1))
+        val filter = VectorFromDictFilter("conf9", 1)(source)
+        
+        val filtered = source.applyFilter(filter)
+        
+        println(source.map(inst => filter.inst2Words(inst)).mkString("\n"))
+        println()
+        println(filtered.header.attributes.map(_.name))
+        println()
+        println(filtered.toList.mkString("\n"))
+    }
+    
     @serializable
     trait Appendix extends History {
         val confName: String
@@ -54,8 +97,8 @@ object VectorFromDictFilter {
         abstract override def apply(categoryIs: CategoryIs) = super.apply(categoryIs) :+ VectorFromDictFilter(confName, minOcc)
     }
     
-    class Conf1(minOcc: Int) extends VectorFromDictFilter {
-        override def inst2Words(inst: ArffJsonInstance) = inst.data(0).asInstanceOf[List[String]].mkString(" ").split("\\s+").toSeq
+    abstract class Conf1(minOcc: Int) extends VectorFromDictFilter {
+        override def inst2Words(inst: ArffJsonInstance) = inst.dataAt(0).asInstanceOf[List[String]].mkString(" ").split("\\s+").toSeq
         
         override val dict = new Dictionary {
             override def wordFun(word: String) = word.filter(c => c.isLetter || c.isDigit).toLowerCase()
@@ -63,7 +106,7 @@ object VectorFromDictFilter {
         }
     }
     
-    class Conf2(minOcc: Int) extends VectorFromDictFilter {
+    abstract class Conf2(minOcc: Int) extends VectorFromDictFilter {
         override def inst2Words(inst: ArffJsonInstance) = inst.data(0).asInstanceOf[List[String]].toSeq
         
         override val dict = new Dictionary {
@@ -72,7 +115,7 @@ object VectorFromDictFilter {
         }
     }
     
-    class Conf3(minOcc: Int) extends VectorFromDictFilter {
+    abstract class Conf3(minOcc: Int) extends VectorFromDictFilter {
         @transient lazy val stemmer = new PorterStemmer
         override def inst2Words(inst: ArffJsonInstance) = {inst.data(0).asInstanceOf[String].split("[\\s.,;:]+").toSeq}
         
@@ -84,7 +127,7 @@ object VectorFromDictFilter {
         }
     }
     
-    class Conf4(minOcc: Int) extends VectorFromDictFilter {
+    abstract class Conf4(minOcc: Int) extends VectorFromDictFilter {
         @transient lazy val stemmer = new PorterStemmer
         
         def inst2Words(inst: ArffJsonInstance) = {
@@ -125,7 +168,7 @@ object VectorFromDictFilter {
         }
     }
     
-    class Conf5(minOcc: Int) extends VectorFromDictFilter {
+    abstract class Conf5(minOcc: Int) extends VectorFromDictFilter {
         @transient lazy val stemmer = new PorterStemmer
         
         def inst2Words(inst: ArffJsonInstance) = {
@@ -162,7 +205,7 @@ object VectorFromDictFilter {
         }
     }
     
-    class Conf6(minOcc: Int) extends VectorFromDictFilter {
+    abstract class Conf6(minOcc: Int) extends VectorFromDictFilter {
         import AdvancedTokenizer._
         
         def inst2Words(inst: ArffJsonInstance) = {
@@ -186,7 +229,7 @@ object VectorFromDictFilter {
         }
     }
     
-    class Conf7(minOcc: Int) extends VectorFromDictFilter {
+    abstract class Conf7(minOcc: Int) extends VectorFromDictFilter {
         // only strings - ignore authors/formulas/references
         // strings to lower - filtered for digits and letters - stemmed
         // minus is seperator
@@ -218,7 +261,7 @@ object VectorFromDictFilter {
         }
     }
     
-    class Conf8(minOcc: Int) extends VectorFromDictFilter {
+    abstract class Conf8(minOcc: Int) extends VectorFromDictFilter {
         // strings/authors/formulas - ignore references
         // strings to lower - filtered for digits and letters - stemmed
         // authors to lower - formulas without spaces
@@ -255,10 +298,10 @@ object VectorFromDictFilter {
         }
     }
     
-    class Conf9(minOcc: Int) extends VectorFromDictFilter {
+    abstract class Conf9(minOcc: Int) extends VectorFromDictFilter {
         // strings/authors/formulas - ignore references
         // strings to lower - filtered for digits and letters - stemmed
-        // authors to lower - formulas without spaces
+        // authors to lower - formulas filtered for digits and letters
         
         import AdvancedTokenizer._
         
@@ -268,7 +311,7 @@ object VectorFromDictFilter {
         )
         
         def inst2Words(inst: ArffJsonInstance) = {
-            val text = inst.data(0).asInstanceOf[String]
+            val text = inst.dataAt(0).asInstanceOf[String]
             
             val words = replaceAcronyms2(
                 tokenize(text, separators)
@@ -293,25 +336,25 @@ object VectorFromDictFilter {
         }
     }
     
-    class Conf10(minOcc: Int) extends VectorFromDictFilter {        
+    abstract class Conf10(minOcc: Int) extends VectorFromDictFilter {        
+        // only string tokens - ignore authors, formulas and references
+        // strings to lower - filtered for digits and letters - not stemmed
+        
         import AdvancedTokenizer._
         
-        val wordTransformFunction = (word: String) => stemmer.stem(word
+        val wordTransformFunction = (word: String) => word
             .filter(c => c.isDigit || c.isLetter)
             .toLowerCase()
-        )
         
         def inst2Words(inst: ArffJsonInstance) = {
-            val text = inst.data(0).asInstanceOf[String]
+            val text = inst.dataAt(0).asInstanceOf[String]
             
             val words = replaceAcronyms2(
                 tokenize(text, separators)
-                    .filter(t => t.isInstanceOf[TokenString] || t.isInstanceOf[BracedText] || t.isInstanceOf[Formula] || t.isInstanceOf[Author])
+                    .filter(t => t.isInstanceOf[TokenString])
                 ).flatMap(t => 
                     t match {
                         case TokenString(str) => if(stopList.contains(str)) List() else List(wordTransformFunction(str))
-                        case Author(str) => List()
-                        case Formula(str) => List()
                         case _ => List()
                     }
                 )
@@ -327,7 +370,10 @@ object VectorFromDictFilter {
         }
     }
     
-    class Conf11(minOcc: Int) extends VectorFromDictFilter {        
+    abstract class Conf11(minOcc: Int) extends VectorFromDictFilter {        
+        // only string tokens - ignore authors, formulas and references
+        // strings to lower - filtered for digits and letters - stemmed
+        
         import AdvancedTokenizer._
         
         val wordTransformFunction = (word: String) => stemmer.stem(word
@@ -336,7 +382,43 @@ object VectorFromDictFilter {
         )
         
         def inst2Words(inst: ArffJsonInstance) = {
-            val text = inst.data(0).asInstanceOf[String]
+            val text = inst.dataAt(0).asInstanceOf[String]
+            
+            val words = replaceAcronyms2(
+                tokenize(text, separators)
+                    .filter(t => t.isInstanceOf[TokenString])
+                ).flatMap(t => 
+                    t match {
+                        case TokenString(str) => if(stopList.contains(str)) List() else List(wordTransformFunction(str))
+                        case _ => List()
+                    }
+                )
+                .filter(s => s != "")
+            
+            words
+        }
+        
+        val separators = List('.', ':', ';', ',')
+        
+        override val dict = new Dictionary() {
+            override val minWordCount = minOcc
+        }
+    }
+    
+    abstract class Conf12(minOcc: Int) extends VectorFromDictFilter {        
+        // strings/authors/formulas - ignore references
+        // strings to lower - filtered for digits and letters - not stemmed
+        // authors to lower - formulas filtered for digits and letters
+        
+        import AdvancedTokenizer._
+        
+        val wordTransformFunction = (word: String) => word
+            .filter(c => c.isDigit || c.isLetter)
+            .toLowerCase()
+        
+        
+        def inst2Words(inst: ArffJsonInstance) = {
+            val text = inst.dataAt(0).asInstanceOf[String]
             
             val words = replaceAcronyms2(
                 tokenize(text, separators)
@@ -345,40 +427,6 @@ object VectorFromDictFilter {
                     t match {
                         case TokenString(str) => if(stopList.contains(str)) List() else List(wordTransformFunction(str))
                         case Author(str) => List("{" + str.toLowerCase() + "}")
-                        case Formula(str) => List()
-                        case _ => List()
-                    }
-                )
-                .filter(s => s != "")
-            
-            words
-        }
-        
-        val separators = List('.', ':', ';', ',')
-        
-        override val dict = new Dictionary() {
-            override val minWordCount = minOcc
-        }
-    }
-    
-    class Conf12(minOcc: Int) extends VectorFromDictFilter {        
-        import AdvancedTokenizer._
-        
-        val wordTransformFunction = (word: String) => stemmer.stem(word
-            .filter(c => c.isDigit || c.isLetter)
-            .toLowerCase()
-        )
-        
-        def inst2Words(inst: ArffJsonInstance) = {
-            val text = inst.data(0).asInstanceOf[String]
-            
-            val words = replaceAcronyms2(
-                tokenize(text, separators)
-                    .filter(t => t.isInstanceOf[TokenString] || t.isInstanceOf[BracedText] || t.isInstanceOf[Formula] || t.isInstanceOf[Author])
-                ).flatMap(t => 
-                    t match {
-                        case TokenString(str) => if(stopList.contains(str)) List() else List(wordTransformFunction(str))
-                        case Author(str) => List()
                         case Formula(str) => List("$" + str.filter(c => c.isDigit || c.isLetter).toLowerCase() + "$")
                         case _ => List()
                     }
@@ -395,7 +443,7 @@ object VectorFromDictFilter {
         }
     }
     
-    class Conf13(minOcc: Int) extends VectorFromDictFilter {        
+    abstract class Conf13(minOcc: Int) extends VectorFromDictFilter {        
         import AdvancedTokenizer._
         
         val wordTransformFunction = (word: String) => stemmer.stem(word
@@ -432,7 +480,7 @@ object VectorFromDictFilter {
     
     object AdvancedTokenizer {
         @transient lazy val stemmer = new PorterStemmer
-        @transient lazy val stopList = new File("data/util/stoplist.txt").lines.map(_.toLowerCase()).toIndexedSeq
+        @transient lazy val stopList = new File("util/stoplist.txt").lines.map(_.toLowerCase()).toIndexedSeq
         @serializable trait Token
         
         case object WhiteSpace extends Token
@@ -790,9 +838,9 @@ abstract class VectorFromDictFilter extends GlobalFilter {
                     }
                 }
                 
-                new SparseArffJsonInstance(inst.id, inst.categories, data.toMap, dict.size())
+                ArffJsonInstance(inst.id, inst.categories, data.toMap, dict.size())
             }),
-            headerFun = header => new ArffJsonHeader(
+            headerFun = header => ArffJsonHeader(
                 header.relationName, 
                 dict.map(w => new NumericArffJsonAttribute(w)).toList.sortBy(_.name)
             )

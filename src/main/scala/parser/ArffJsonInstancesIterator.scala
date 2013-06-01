@@ -14,13 +14,11 @@ class ArffJsonInstancesIterator(reader: BufferedReader, header: ArffJsonHeader) 
         val line = reader.readLine()
         if(line != null) {
             count += 1
-            buffer = try {
-                ArffJsonInstance(line, header)
-            } catch {
-                case e: Exception => {
-                    // println("catch: line: " + count + ", text: " + line)
-                    ArffJsonInstance(new DefaultJSONParser(line).parse().asInstanceOf[JSONArray], header)
-                }
+            
+            if(count <= 10) {
+                buffer = ArffJsonInstance(line, header, true)
+            } else {
+                buffer = ArffJsonInstance(line, header, false)
             }
         } else {
             buffer = null

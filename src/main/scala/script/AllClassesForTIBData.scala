@@ -15,6 +15,8 @@ import common.FileManager
 import java.io.BufferedWriter
 import java.io.FileWriter
 import java.io.File
+import classifier.BalancedTrainSetSelection
+import classifier.CategoryIsMSC
 
 object AllClassesForTIBData {
     def main(args: Array[String]) {
@@ -35,21 +37,22 @@ object AllClassesForTIBData {
                 with NormalizeVectorFilter.Appendix { 
                     val confName = "conf9"
                     override val minOcc = 3
-                }
+                },
+            BalancedTrainSetSelection(Some(5000))
         )
         
-        val classifiers = (for(cat <- consideredCats.map(c => CategoryIs(c + "-xx"))) yield {
+        val classifiers = (for(cat <- consideredCats.map(c => CategoryIsMSC(c + "-xx"))) yield {
             cat -> learner.classifier(trainSet, cat)
         }).toMap
         
         def escape(str: String) = str.replaceAll("\\s", " ").replaceAllLiterally("\\", "\\\\").replaceAllLiterally("\"", "\\\"")
         val header = ArffJsonHeader.jsonToArffJsonHeader("""{"relation-name" : "final_format", "attributes" : [{"name" : "title", "type" : "string"}, {"name" : "abstract", "type" : "string"}, {"name" : "journals", "type" : "string"}, {"name" : "terms", "type" : "string"}]}""")
         
-        val x = for(doc <- tibCorpus.map(doc => ArffJsonInstance.stringToArffJsonInstance(
+        val x = for(doc <- tibCorpus.map(doc => ArffJsonInstance(
             """[["",[]],["%s","%s",[],[]]]""".format(escape(doc.data(0).asInstanceOf[String]), escape(doc.data(1).asInstanceOf[String])),
             header
         ))) yield {
-            (doc.id -> (for(cat <- consideredCats.map(c => CategoryIs(c))) yield {
+            (doc.id -> (for(cat <- consideredCats.map(c => CategoryIsMSC(c))) yield {
                 val classifier = classifiers(cat)
                 if(classifier.classifications(testSet)(0).classification >= 0) List(cat)
                 else List()

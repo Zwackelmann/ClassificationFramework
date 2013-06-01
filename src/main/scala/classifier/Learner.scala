@@ -51,7 +51,7 @@ trait Learner {
     import common.Common.verbosity
     
     def trainClassifier(inst: ArffJsonInstancesSource, categoryIs: CategoryIs): Classifier
-    def loadClassifier(fullFilename: String): Classifier  // TODO gehört hier eigentlich nicht hin... eigentlich zum Classifier Companion
+    def loadClassifier(fullFilename: String): Classifier  // TODO gehoert hier eigentlich nicht hin... eigentlich zum Classifier Companion
     
     def fileAppendix: String
     def targetHistory(categoryIs: CategoryIs): List[FilterFactory]
@@ -127,7 +127,13 @@ trait Learner {
     def classifications(trainInst: ArffJsonInstancesSource, targetInst: ArffJsonInstancesSource, cat: CategoryIs): List[RawClassification] = {
         (trainInst, targetInst) match {
             case (describableTrainInst: ContentDescribable, describableTargetInst: ContentDescribable) => {
-                val classificationsFullFilename = Learner.classificationsFullFilename(describableTrainInst.contentDescription, cat, Some(this), describableTargetInst.contentDescription)
+                val classificationsFullFilename = Learner.classificationsFullFilename(
+                    InstancesMappings.foldHistoryIntoCd(describableTrainInst.contentDescription, targetHistory(cat)), 
+                    cat, 
+                    Some(this), 
+                    InstancesMappings.foldHistoryIntoCd(describableTargetInst.contentDescription, targetHistory(cat))
+                )
+                
                 if(verbosity >= 2) println("check if " + classificationsFullFilename + " exists")
                 
                 (FileManager !? ReceiveFile(classificationsFullFilename, false)) match {

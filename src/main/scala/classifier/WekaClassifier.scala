@@ -38,7 +38,7 @@ object WekaClassifier {
     def builtClassifier(mappedInst: ArffJsonInstancesSource, categoryIs: CategoryIs, classifierConfig: () => WekaInternalClassifier): WekaInternalClassifier = {
         val instances = {
             val classAttribute = (inst: ArffJsonInstance) => {
-                val isTarget = categoryIs(inst.categories) 
+                val isTarget = categoryIs.matchesForTraining(inst.categories) 
                 if(isTarget.isDefined && isTarget.get) "yes" else if(isTarget.isDefined) "no" else "?"
             }
             val arffJsonInst = new ArffJsonInstances(mappedInst, List(Pair(new NominalArffJsonAttribute("target_class", List("no", "yes", "?")), classAttribute)))
@@ -58,7 +58,7 @@ class WekaClassifier(val wekaClassifier: WekaInternalClassifier, val trainBaseCD
     def calculateClassifications(mappedInst: ArffJsonInstancesSource) = {
         val arffJsonInstances = {
             val classAttribute = (inst: ArffJsonInstance) => {
-                val isTarget = categoryIs(inst.categories) 
+                val isTarget = categoryIs.matchesForTesting(inst.categories) 
                 if(isTarget.isDefined && isTarget.get) "yes" else if(isTarget.isDefined) "no" else "?"
             }
             val arffJsonInstances = new ArffJsonInstances(mappedInst, List(Pair(new NominalArffJsonAttribute("target_class", List("no", "yes")), classAttribute)))
@@ -75,7 +75,7 @@ class WekaClassifier(val wekaClassifier: WekaInternalClassifier, val trainBaseCD
             //println(possForYes)
             
             val trueClass = {
-                val isTarget = targetClassDef(arffJsonInstance.categories)
+                val isTarget = targetClassDef.matchesForTesting(arffJsonInstance.categories)
                 if(isTarget.isDefined && isTarget.get) 1.0 else if(isTarget.isDefined) -1.0 else 0.0
             }
             

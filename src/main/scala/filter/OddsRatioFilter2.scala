@@ -9,7 +9,9 @@ import parser.History
 object OddsRatioFilter2 {
     def apply(categoryIs: CategoryIs, numOrDims: Int) = new FilterFactory() with Loadable[OddsRatioFilter2] {
         def apply(trainBase: ArffJsonInstancesSource) = {
-            new OddsRatioFilter2(trainBase, categoryIs, numOrDims)
+            new OddsRatioFilter2(trainBase, categoryIs, numOrDims) {
+                override val trainingParams = Filter.trainingParams(historyAppendix, trainBase)
+            }
         }
         
         val historyAppendix = "or2-" + numOrDims + "-" + categoryIs.filenameExtension
@@ -23,12 +25,12 @@ object OddsRatioFilter2 {
 }
 
 @serializable
-class OddsRatioFilter2(trainBase: ArffJsonInstancesSource, categoryIs: CategoryIs, numOrDims: Int) extends GlobalFilter {
+abstract class OddsRatioFilter2(trainBase: ArffJsonInstancesSource, categoryIs: CategoryIs, numOrDims: Int) extends GlobalFilter {
     val featureScoring = new OddsRatio(trainBase, categoryIs)
     
     def applyFilter(inst: ArffJsonInstancesSource) = {
         val bestFeatures = featureScoring.rankedFeatureList
-        val chosenFeatures = bestFeatures.take(numOrDims).map(_._1)
+        val chosenFeatures = bestFeatures.take(numOrDims).map(_._1).toSet
         inst.project(
             chosenFeatures
         )

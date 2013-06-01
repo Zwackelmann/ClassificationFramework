@@ -6,6 +6,7 @@ import classifier.CategoryIs
 import model.RawClassification
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption._;
+import classifier.CategoryIsMSC
 
 object FindConsistentResultSets {
 	def main(args: Array[String]) {
@@ -16,9 +17,9 @@ object FindConsistentResultSets {
 	    val projs = List("tit", "abs", "jour", "ter", "uni")
 	    
 	    val consideredCategories = layer match {
-	        case 1 => common.Common.topClasses map (c => CategoryIs.top(c))
-	        case 2 => ApplyFinalClassifier.findConsideredCategories(corpus, layer, 100).map(c => CategoryIs.topAndMiddle(c.substring(0, 2), c.substring(2, 3)))
-	        case 3 => ApplyFinalClassifier.findConsideredCategories(corpus, layer, 100).map(c => CategoryIs.topMiddleAndLeave(c.substring(0, 2), c.substring(2, 3), c.substring(3, 5)))
+	        case 1 => common.Common.topClasses map (c => CategoryIsMSC.top(c))
+	        case 2 => ApplyFinalClassifier.findConsideredCategories(corpus, layer, 100).map(c => CategoryIsMSC.topAndMiddle(c.substring(0, 2), c.substring(2, 3)))
+	        case 3 => ApplyFinalClassifier.findConsideredCategories(corpus, layer, 100).map(c => CategoryIsMSC.topMiddleAndLeave(c.substring(0, 2), c.substring(2, 3), c.substring(3, 5)))
 	    }
 	    val realSetIds = ArffJsonInstancesSource("data/arffJson/min100-" + set + ".json").map(_.id).toSet
 	    

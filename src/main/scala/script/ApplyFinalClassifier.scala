@@ -24,8 +24,6 @@ import format.arff_json.ArffJsonInstance
 import filter.VectorFromNGramTreeFilter
 import common.Common.FileConversion._
 import format.arff_json.ArffJsonHeader
-import format.arff_json.SparseArffJsonInstance
-import format.arff_json.DenseArffJsonInstance
 import filter.ScalingOddsRatioFilter
 import filter.MostFrequentTermsFilter
 import filter.FilterFactory
@@ -38,7 +36,6 @@ import parser.ContentDescribable
 import classifier.FixedTrainSetSelection
 import classifier.CategoryIs
 import filter.CategorySelectionFilter
-import classifier.BalancedTrainSetSelection
 import common.TrainTuningTestSetSelection
 import classifier.Thresholding
 import java.io.BufferedWriter
@@ -55,29 +52,39 @@ import common.Dispatcher
 import common.Dispatcher.{Task, Quit}
 import common.FileManager
 import common.Path
+import java.util.Scanner
+import classifier.CategorizationHierarchy
+import classifier.CategoryIsMSC
+
+object Halt {
+    private val s = new Scanner(System.in)
+    def apply(message: String = "") {
+        println(message + " press Enter...")
+        s.nextLine()
+    }
+}
 
 object ApplyFinalClassifier {
     def main(args: Array[String]) {
         val arguments = {
-            // args.toList
-            List("corpus.jar", "min100", "1")
+            /// args.toList
+            List("corpus.json", "prod", "1")
         }
         if(arguments.size != 3) {
-            println("Erstes Argument: Corpus dateiname data/arffJson\nZweites Argument name des Korpus\nDrittes Argument layer für die Klassifizierung")
+            println("Erstes Argument: Corpus dateiname data/arffJson\nZweites Argument name des Korpus\nDrittes Argument layer fuer die Klassifizierung")
             exit(1)
         } 
         try {
-            Path.rootFolder = "data_stemmed_termes_fuer_tbdb"
-            
+            common.Path.rootFolder = "data_try_train_set_selection2"
             println("calculate statistics...")
-            val corpusFilename = "corpus.json" // args(0)
+            val corpusFilename = arguments(0)
             
             val corpus = ArffJsonInstancesSource(Path.rootFolder + "/arffJson/" + corpusFilename)
             
             val ((trainSet, tuningSet, testSet), c) = TrainTuningTestSetSelection.getSets(100, arguments(1), corpus, (0.7, 0.3, 0.0))
             // val ((trainSet, tuningSet, testSet), c) = TrainTuningTestSetSelection.getSets(100, arguments(1), corpus, (0.6, 0.2, 0.2))
             
-            val consideredCategories = c map (c => CategoryIs(c))
+            val consideredCategories = c map (c => CategoryIsMSC(c))
             
             val layer = arguments(2).toInt
             val minOccurences = 100
@@ -85,22 +92,23 @@ object ApplyFinalClassifier {
             val startTime = System.currentTimeMillis()
             val evaluationDataAccumulator = new EvaluationDataAccumulator()
             
-            def jsvmUniLearner(cat: CategoryIs, layer: Int) = SvmLightJniLearner(
+            def jsvmUniLearner(cat: CategoryIs with CategorizationHierarchy, layer: Int) = SvmLightJniLearner(
                 new History() 
                         with AbstractTitleConcat
-                        with CategorySelectionFilter.Appendix
+                        // with CategorySelectionFilter.Appendix
                         with VectorFromDictFilter.Appendix
                         with TfIdfFilter.Appendix
-                        with NormalizeVectorFilter.Appendix { 
+                        /*with NormalizeVectorFilter.Appendix*/ { 
                     
                     val selection = cat.parent
-                    val confName = "conf9"
+                    val confName = "conf10"
                     override val minOcc = layer match {
                         case 1 => 3
                         case 2 | 3 => 1
                         case _ => throw new RuntimeException("layer must be between 1 and 3")
                     }
-                }
+                },
+                BalancedTrainSetSelection(Some(10000))
             )
             
             val dispatcher = new Dispatcher(1)
@@ -110,21 +118,28 @@ object ApplyFinalClassifier {
             val secondLevelClasses = thirdLevelClasses.map(_.parent)
             val firstLevelClasses = secondLevelClasses.map(_.parent)
             
-            val targetCategories = (layer match {
+            /*val targetCategories = (layer match {
                 case 1 => firstLevelClasses
                 case 2 => secondLevelClasses
                 case 3 => thirdLevelClasses
             }).toList.sortBy(_.filenameExtension)
-            
-            val evaluator = new EvaluationDataAccumulator
+            */
+            val targetCategories = List("05", "11", "14", "16", "20", "30", "32", "34", "35", "45", "53", "60", "68").map(c => CategoryIsMSC(c + "-xx"))
             
             for((cat, i) <- targetCategories.zipWithIndex) {
-                println("start cat " + cat.filenameExtension + "...")
                 printProgress(i, targetCategories.size)
                 
                 val learner = jsvmUniLearner(cat, layer)
                 val r = learner.classifications(trainSet, tuningSet, cat)
-                evaluator("svmUni", r)
+                
+                val precRecPoints = RawClassification.precRecGraphPoints(r)
+                val bestF = bestFmeasure(precRecPoints)
+                val reportStr = "{" + 
+                        "\"topClass\" : \"" + cat.topClass.get + "\", " + 
+                        "\"bestF\" : " + bestF + ", " +  
+                        "\"precRecGraphPoints\" : " + "[" + precRecPoints.map(p => p._2).mkString(",") + "]" +
+                    "}\n"
+                println(reportStr)
                 // dispatcher !? Task(() => {
                     // jsvmTitleLearner.classifications(trainSet, tibTestSet, cat)
                 // })
@@ -132,10 +147,6 @@ object ApplyFinalClassifier {
             dispatcher !? Quit
             println("all finished")
             
-            val writer = new BufferedWriter(new FileWriter(new File("prec-rec-graphs-stemmed-tersm")))
-            evaluator.precRecGraphs(None, writer)
-            evaluator.precRecGraphs(Some(10), writer)
-            writer.close
             /*launchAsynchronous(categoryGroups) { cat => {
                 val minWordCount = if(layer == 1) 3 else 1
                 val orTh = if(layer == 1) 5.0 else 2.0
@@ -524,6 +535,17 @@ object ApplyFinalClassifier {
             FileManager.quit
         }
     }
+    def fMeasure(prec: Double, rec: Double) = (2 * prec * rec) / (prec + rec)
+    
+    def bestFmeasure(seq: Seq[Pair[Double, Double]]) = {
+        val seq2 = seq.filter(x => !fMeasure(x._2, x._1).isNaN())
+        
+        if(seq2.isEmpty) Double.NaN
+        else {
+            val p = seq2.maxBy(x => fMeasure(x._2, x._1))
+            (2 * p._1 * p._2) / (p._1 + p._2)
+        }
+    }
     
     def launchAsynchronous(jobData: Iterable[List[CategoryIs]])(job: CategoryIs => Unit) {
         val startTime = System.currentTimeMillis()
@@ -582,21 +604,21 @@ object ApplyFinalClassifier {
             case 1 => (
                 ((c: String) => true), 
                 ((c: String) => c.substring(0, 2)), 
-                ((c: String) => CategoryIs.top(c.substring(0, 2))),
+                ((c: String) => CategoryIsMSC.top(c.substring(0, 2))),
                 ((c: String) => c.substring(0, 2))
             )
             
             case 2 => (
                 ((c: String) => c.substring(2, 3) != "-"), 
                 ((c: String) => c.substring(0, 3)), 
-                ((c: String) => CategoryIs.topAndMiddle(c.substring(0, 2), c.substring(2, 3))),
+                ((c: String) => CategoryIsMSC.topAndMiddle(c.substring(0, 2), c.substring(2, 3))),
                 ((c: String) => c.substring(0, 2))
             )
             
             case 3 => (
                 ((c: String) => c.substring(2, 3) != "-" && c.substring(3, 5).toLowerCase != "xx"), 
                 ((c: String) => c), 
-                ((c: String) => CategoryIs.topMiddleAndLeave(c.substring(0, 2), c.substring(2, 3), c.substring(3, 5))),
+                ((c: String) => CategoryIsMSC.topMiddleAndLeave(c.substring(0, 2), c.substring(2, 3), c.substring(3, 5))),
                 ((c: String) => c.substring(0, 3))
             )
         }
@@ -642,11 +664,10 @@ object CombineClassifiers {
         
         val (bestCoofficients, bestFmeasure) = (for(coofficients <- comb(tuningSetResults.size)) yield {
             val res = RawClassification.weightedSumWithCoofficients(tuningSetResults, coofficients)
-            (coofficients, Classifier.fMeasure(res, 1.0, 0.0))
+            (coofficients, Classifier.fMeasure(res, 1.0))
         }).filter(!_._2.isNaN).maxBy(_._2)
 		println((bestCoofficients, bestFmeasure))
 		
-        
         bestCoofficients
     }
 }
@@ -717,8 +738,9 @@ class EvaluationDataAccumulator() {
 
 
 object SvmLightJniLearner {
-    def apply(_history: CategoryIs => List[FilterFactory]) = new Learner {
+    def apply(_history: CategoryIs => List[FilterFactory], trainSetSelection: TrainSetSelectionDefinition) = new Learner with TrainSetSelection {
         @transient val history = _history
+        val trainSetSelectionDef: TrainSetSelectionDefinition = trainSetSelection
         
         def fileAppendix = 
             "jsvm_" +

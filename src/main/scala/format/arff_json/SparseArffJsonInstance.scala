@@ -1,19 +1,24 @@
 package format.arff_json
 
 import common.Common.escape
+import com.alibaba.fastjson.parser.DefaultJSONParser
+import com.alibaba.fastjson.JSONObject
 
-class SparseArffJsonInstance(id: String, mscClasses: List[String], val dataMap: Map[Int, Any], _numAttributes: Int) extends ArffJsonInstance(id, mscClasses) {
+trait SparseData extends ArffJsonInstance {
     import ArffJsonInstance.dataToJson
+    
+    def dataMap: Map[Int, Any]
+    val _numAttributes: Int
     
     def toJson = 
         "[" + 
             "[" + 
-                (List(id, mscClasses).map(dataToJson(_))).mkString(",") + 
+                (List(id, categories).map(dataToJson(_))).mkString(",") + 
             "],{" + 
                 (dataMap.toList.sortBy(_._1).map(x => "\"" + x._1 + "\":" + (dataToJson(x._2))).mkString(",")) + 
             "}" +
         "]"
-            
+    
     def dataAt(index: Int) = dataMap.getOrElse(index, 0.0)
     def numAttributes() = _numAttributes
     

@@ -8,7 +8,9 @@ import parser.History
 object OddsRatioFilter {
     def apply(categoryIs: CategoryIs, orThreshold: Double, numWorst: Int) = new FilterFactory() with Loadable[OddsRatioFilter] {
         def apply(trainBase: ArffJsonInstancesSource) = {
-            new OddsRatioFilter(trainBase, categoryIs, orThreshold, numWorst)
+            new OddsRatioFilter(trainBase, categoryIs, orThreshold, numWorst) {
+                override val trainingParams = Filter.trainingParams(historyAppendix, trainBase)
+            }
         }
         
         val historyAppendix = "or-" + orThreshold + "-" + numWorst + "-" + categoryIs.filenameExtension
@@ -23,13 +25,12 @@ object OddsRatioFilter {
 }
 
 @serializable
-class OddsRatioFilter(trainBase: ArffJsonInstancesSource, categoryIs: CategoryIs, orThreshold: Double, numWorst: Int) extends GlobalFilter {
+abstract class OddsRatioFilter(trainBase: ArffJsonInstancesSource, categoryIs: CategoryIs, orThreshold: Double, numWorst: Int) extends GlobalFilter {
     val featureScoring = new OddsRatio(trainBase, categoryIs)
     
     def applyFilter(inst: ArffJsonInstancesSource) = {
         val bestFeatures = featureScoring.rankedFeatureList
-        val chosenFeatures = bestFeatures.takeWhile(_._2 > orThreshold).map(_._1) ++ bestFeatures.reverse.take(numWorst).map(_._1)
-        println(chosenFeatures.size + " features selected for or filter")
+        val chosenFeatures = bestFeatures.takeWhile(_._2 > orThreshold).map(_._1).toSet ++ bestFeatures.reverse.take(numWorst).map(_._1).toSet
         val returnInst = inst.project(
             chosenFeatures
         )

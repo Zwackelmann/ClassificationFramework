@@ -5,13 +5,14 @@ import java.io.File
 import feature_scoreing.OddsRatio
 import format.arff_json.ArffJsonInstance
 import format.arff_json.ArffJsonHeader
-import format.arff_json.SparseArffJsonInstance
 import parser.History
 
 object ScalingOddsRatioFilter {
     def apply(categoryIs: CategoryIs, orThreshold: Double, numWorst: Int, shift: Double) = new FilterFactory() with Loadable[ScalingOddsRatioFilter] {
         def apply(trainBase: ArffJsonInstancesSource) = {
-            new ScalingOddsRatioFilter(trainBase, categoryIs, orThreshold, numWorst, shift)
+            new ScalingOddsRatioFilter(trainBase, categoryIs, orThreshold, numWorst, shift) {
+                override val trainingParams = Filter.trainingParams(historyAppendix, trainBase)
+            }
         }
         
         val historyAppendix = "sor-" + orThreshold + "-" + numWorst + "-" + shift + "-" + categoryIs.filenameExtension
@@ -37,7 +38,7 @@ object ScalingOddsRatioFilter {
 }
 
 @serializable
-class ScalingOddsRatioFilter(trainBase: ArffJsonInstancesSource, categoryIs: CategoryIs, orThreshold: Double, numWorst: Int, shift: Double) extends GlobalFilter {
+abstract class ScalingOddsRatioFilter(trainBase: ArffJsonInstancesSource, categoryIs: CategoryIs, orThreshold: Double, numWorst: Int, shift: Double) extends GlobalFilter {
     import ScalingOddsRatioFilter._
     
     val featureScoring = new OddsRatio(trainBase, categoryIs)
@@ -46,7 +47,7 @@ class ScalingOddsRatioFilter(trainBase: ArffJsonInstancesSource, categoryIs: Cat
         val bestFeatures = featureScoring.rankedFeatureList
         val chosenFeatures = bestFeatures.takeWhile(_._2 > orThreshold) ++ bestFeatures.reverse.take(numWorst)
         
-        val chosenIndexes = chosenFeatures.map(_._1)
+        val chosenIndexes = chosenFeatures.map(_._1).toSet
         val featureScores = (0 until chosenFeatures.size).zip(chosenFeatures.map(_._2)).toMap
         println(chosenFeatures.size + " features selected for sor filter")
         
@@ -54,12 +55,22 @@ class ScalingOddsRatioFilter(trainBase: ArffJsonInstancesSource, categoryIs: Cat
                 val data = (for((key, value) <- inst.project(chosenIndexes).sparseData) yield {
                     key -> score(value, featureScores(key), shift)
                 })
-                new SparseArffJsonInstance(inst.id, inst.categories, data, chosenFeatures.size)
+                ArffJsonInstance(inst.id, inst.categories, data, chosenFeatures.size)
             },
-            (header: ArffJsonHeader) => new ArffJsonHeader(
-                header.relationName, 
-                chosenIndexes.map(feature => header.attributes(feature))
-            )
+            
+            (header: ArffJsonHeader) => {
+                if(header.explicitAttributes) {
+                    ArffJsonHeader(
+                        header.relationName, 
+                        chosenIndexes.map(feature => header.attribute(feature))
+                    )
+                } else {
+                    ArffJsonHeader(
+                        header.relationName, 
+                        chosenFeatures.size
+                    )
+                }
+            }
         )
     }
 }

@@ -1,15 +1,18 @@
 package format.arff_json
 
 import common.Common.escape
+import com.alibaba.fastjson.parser.DefaultJSONParser
+import com.alibaba.fastjson.JSONArray
 
-class DenseArffJsonInstance(id: String, mscClasses: List[String], val dataList: List[Any]) extends ArffJsonInstance(id, mscClasses) {
+trait DenseData extends ArffJsonInstance {
+    def dataList: List[Any]
     import ArffJsonInstance.dataToJson
     
     def toJson = "[" + 
-        "[" + (List(id, mscClasses).map(dataToJson(_))).mkString(",") + "]," + 
+        "[" + (List(id, categories).map(dataToJson(_))).mkString(",") + "]," + 
         "[" + (dataList.map(dataToJson(_))).mkString(",") + "]" + 
     "]"
-        
+    
     def dataAt(index: Int) = dataList(index)
     def numAttributes() = dataList.size
     override def toString = toJson
