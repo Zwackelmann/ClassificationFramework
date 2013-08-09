@@ -24,14 +24,13 @@ trait Loadable[T <: Filter] extends FilterFactory {
         None
     } 
     
-    def load(fullFilename: String) = (FileManager !? ReceiveFile(fullFilename, true)) match {
+    def load(fullFilename: String) = (FileManager !? ReceiveFile(fullFilename)) match {
         case AcceptReceiveFile(file) => try {
             Some(common.ObjectToFile.readObjectFromFile(file).asInstanceOf[T])
         } catch {
             case _: Throwable => None
         }
         case FileNotExists => None
-        case Error(msg) => throw new RuntimeException(msg)
     }
     
     def load(trainBaseCd: ContentDescription): Option[T] = load(common.Path.filterPath / Filter.filename(trainBaseCd, historyAppendix))
@@ -43,13 +42,11 @@ trait Loadable[T <: Filter] extends FilterFactory {
     
     def save(filter: Any, fullFilename: String) {
         assert(filter.isInstanceOf[Filter])
-        
-        (FileManager !? CreateFile(fullFilename, true, (file => {
-            common.ObjectToFile.writeObjectToFile(filter, file)
-        }))) match {
-            case Success =>
-            case Failed => throw new RuntimeException("saving of filter " + fullFilename + " failed")
-            case Error(msg) => throw new RuntimeException(msg)
+        (FileManager !? CreateFile(fullFilename)) match {
+            case AcceptCreateFile(fileHandle) => 
+                common.ObjectToFile.writeObjectToFile(filter, fileHandle.file)
+                fileHandle.close
+            case RejectCreateFile => throw new RuntimeException("Could not write file")
         }
     }
 }

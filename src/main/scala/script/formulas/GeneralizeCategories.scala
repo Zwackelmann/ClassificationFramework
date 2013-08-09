@@ -9,10 +9,13 @@ import classifier.BalancedTrainSetSelection
 import parser.History
 import parser.ArffJsonInstancesSource
 import common.TrainTuningTestSetSelection
-import classifier.CategoryIs
-import classifier.CategoryIsMSC
 import model.RawClassification
 import classifier.Classifier
+import classifier.CategorizationHierarchy
+import filter.SimpleTextToFeatureVectorFilter
+import classifier.CategoryIsMscSome
+import classifier.CategoryIs
+import classifier.NoTrainSetSelection
 
 object GeneralizeCategories {
     def main(args: Array[String]) {
@@ -69,40 +72,69 @@ object GeneralizeCategories {
             List(94)
         )*/
         
-        val clusters = List(
+        /*val clusters = List(
             List(0, 1, 3,    6,    11,     13, 14, 15,     17,             22, 26, 28, 30, 31, 32, 33, 34, 35, 37, 39,     41, 42, 43,     45, 46, 47, 49, 51, 52, 53, 54,     57, 58, 60, 62, 65, 68, 70,     78,             82,             90,     92, 93, 94    ), 
             List(   1, 3, 5, 6, 8, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 22, 26, 28, 30, 31, 32, 33, 34, 35, 37, 39, 40, 41, 42, 43, 44, 45, 46, 47, 49, 51, 52, 53, 54, 55, 57, 58, 60, 62, 65, 68, 70, 74, 78,     80, 81, 82,     85, 86, 90, 91, 92, 93, 94, 97), 
             List(      3,          11,     13, 14, 15,                     22, 26, 28, 30,     32, 33, 34, 35, 37, 39,     41, 42,         45, 46, 47, 49, 51, 52, 53, 54,     57, 58, 60, 62, 65,     70,     78,         81, 82, 83, 85,     90,         93, 94    ), 
             List(      3,                      14, 15,                     22, 26, 28, 30,     32,     34, 35, 37, 39,     41, 42,         45, 46, 47, 49,     52,                 58, 60, 62, 65,     70, 74, 76, 78, 80,     82,         86, 90,     92, 93, 94    )
+        )*/
+        
+        val clusters = List(
+            List(0, 97),
+            List(16, 13),
+            List(20, 22),
+            List(97),
+            List(0, 1),
+            List(0, 1, 97),
+            List(58, 53)
         )
         
-        common.Path.rootFolder = "data_try_train_set_selection"
+        common.Path.rootFolder = "data_for_evaluation_poster"
         val corpus = ArffJsonInstancesSource(common.Path.rootFolder + "/arffJson/corpus.json")
         
         val ((trainSet, tuningSet, testSet), c) = TrainTuningTestSetSelection.getSets(100, "prod", corpus, (0.7, 0.3, 0.0))
         val minOccurences = 100
         
         val learner = SvmLightJniLearner(
-            new History() 
-                with AbstractTitleConcat
-                with VectorFromDictFilter.Appendix
-                with TfIdfFilter.Appendix {
-                val confName = "conf9"
-            },
-            BalancedTrainSetSelection(Some(10000))
-        )
+                new History() 
+                        with AbstractTitleConcat
+                        with SimpleTextToFeatureVectorFilter.Appendix
+                        with TfIdfFilter.Appendix
+                        with NormalizeVectorFilter.Appendix { 
+                },
+                BalancedTrainSetSelection(Some(10000))
+                // NoTrainSetSelection
+            )
         
         for(cluster <- clusters) {
-            val r = learner.classifications(trainSet, tuningSet, CategoryIs.oneOf(cluster.map(c => CategoryIsMSC.top(c))))
+            val r = learner.classifications(trainSet, tuningSet, CategoryIs.oneOf(cluster.map(c => CategoryIsMscSome.top(c))))
+            
             val t = RawClassification.findBestThreshold(r, 1.0)
             val r2 = RawClassification.withThreshold(r, t)
             
             println()
             println(cluster)
-            println("old f1 measure: " + Classifier.fMeasure(r, 1.0))
-            println("threshold: " + t)
-            println("new f1 measure: " + Classifier.fMeasure(r2, 1.0))
+            // println("old f1 measure: " + Classifier.fMeasure(r, 1.0))
+            // println("threshold: " + t)
+            println("best f1 measure: " + Classifier.fMeasure(r2, 1.0))
             println()
+            
+            println("analyze components:")
+            for(cat <- cluster) {
+                println(cat + ": ")
+                val r3 = learner.classifications(
+                    trainSet, 
+                    tuningSet,
+                    CategoryIsMscSome.top(cat)
+                )
+                
+                val t2 = RawClassification.findBestThreshold(r3, 1.0)
+                val r4 = RawClassification.withThreshold(r3, t2)
+                
+                println("best f1 measure: " + Classifier.fMeasure(r4, 1.0))
+            }
+            
+            println("\n\n")
         }
     }
 }

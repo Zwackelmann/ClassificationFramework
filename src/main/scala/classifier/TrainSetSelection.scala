@@ -31,15 +31,15 @@ object TrainSetSelection {
             case source => throw new RuntimeException("train set selection with not content describable instances is not implemented yet")
         }
         
-        (FileManager !? FileExists(targetFile)) match {
-            case Exists(false) => {
+        (FileManager !? CreateOrReceiveFile(targetFile)) match {
+            case AcceptCreateFile(fileHandle) => {
                 trainSetSelectionDef match {
                     case FixedTrainSetSelection(numTargetInst, numOtherInst) => {
-                        if(!categoryIs.isInstanceOf[CategoryIsMSC]) {
+                        if(!categoryIs.isInstanceOf[CategoryIsMsc]) {
                             throw new RuntimeException("FixedTranSetSelection is only implemented for CategoryIsMSC categories")
                             // TODO ...
                         } else {
-                            val mscCat = categoryIs.asInstanceOf[CategoryIsMSC]
+                            val mscCat = categoryIs.asInstanceOf[CategoryIsMsc]
                             
                             val groupFun = (if(mscCat.targetLevel == 1) {
                                 ((l: List[String]) => l.map(_.substring(0, 2)).distinct)
@@ -67,60 +67,49 @@ object TrainSetSelection {
                                 map.toMap
                             }
                             println("done")
-                            
                             println("select training instances... ")
                             
-                            (FileManager !? WriteFile(targetFile)) match {
-                                case AcceptWriteFile(writer) => {
-                                    writer.write(source.header.toJson + "\n")
-                                    
-                                    var numTrainingInst = 0
-                                    val trainingInst = {
-                                        val currentInstByGroup = new mutable.HashMap[String, Int] {
-                                            override def default(key: String) = 0
-                                        }
-                                        
-                                        for(inst <- source; if preFilter(inst)) {
-                                            val targetNumInst = 
-                                                if(categoryIs.matchesForTraining(inst.categories).get) numTargetInst
-                                                else numOtherInst
-                                            
-                                            val groups = groupFun(inst.categories).distinct
-                                            
-                                            val probForInst = {
-                                                if(groups.isEmpty) {
-                                                    0
-                                                } else {
-                                                    val probByGroup = targetNumInst match {
-                                                        case Some(number) => groups.map(group => number.toDouble / totalInstByGroup(group))
-                                                        case None => List(groups.size.toDouble)
-                                                    }
-                                                    probByGroup.reduce(_ + _) / groups.size
-                                                }
-                                            }
-                                            if(math.random < probForInst) {
-                                                writer.write(inst.toJson + "\n")
-                                                numTrainingInst += 1
-                                                
-                                                val groups = groupFun(inst.categories)
-                                                for(group <- groups) {
-                                                    currentInstByGroup(group) = currentInstByGroup(group) + 1
-                                                }
-                                            }
-                                        }
-                                        
-                                        // println("average numInst by group: " + (currentInstByGroup.values.reduceLeft(_ + _).toDouble / currentInstByGroup.values.size))
-                                        // println(currentInstByGroup.mkString("\n"))
-                                        // buffer.toList
-                                    }
-                                    writer.close()
-                                    
-                                    println("done")
-                                    println("total instances for training: " + numTrainingInst)
+                            val writer = new BufferedWriter(new FileWriter(fileHandle.file))
+                            
+                            var numTrainingInst = 0
+                            val trainingInst = {
+                                val currentInstByGroup = new mutable.HashMap[String, Int] {
+                                    override def default(key: String) = 0
                                 }
-                                case RejectWriteFile => 
-                                case Error(msg) => throw new RuntimeException(msg)
+                                
+                                for(inst <- source; if preFilter(inst)) {
+                                    val targetNumInst = 
+                                        if(categoryIs.matchesForTraining(inst.categories).get) numTargetInst
+                                        else numOtherInst
+                                    
+                                    val groups = groupFun(inst.categories).distinct
+                                    
+                                    val probForInst = {
+                                        if(groups.isEmpty) {
+                                            0
+                                        } else {
+                                            val probByGroup = targetNumInst match {
+                                                case Some(number) => groups.map(group => number.toDouble / totalInstByGroup(group))
+                                                case None => List(groups.size.toDouble)
+                                            }
+                                            probByGroup.reduce(_ + _) / groups.size
+                                        }
+                                    }
+                                    if(math.random < probForInst) {
+                                        writer.write(inst.toJson + "\n")
+                                        numTrainingInst += 1
+                                        
+                                        val groups = groupFun(inst.categories)
+                                        for(group <- groups) {
+                                            currentInstByGroup(group) = currentInstByGroup(group) + 1
+                                        }
+                                    }
+                                }
                             }
+                            writer.close()
+                            fileHandle.close()
+                            println("done")
+                            println("total instances for training: " + numTrainingInst)
                         }
                     }
                     
@@ -149,25 +138,23 @@ object TrainSetSelection {
                         
                         var writtenInstances1 = 0
                         var writtenInstances2 = 0
-                        (FileManager !? WriteFile(targetFile)) match {
-                            case AcceptWriteFile(writer) => {
-                                writer.write(source.header.toJson + "\n")
-                                for(inst <- source.iterator.filter(preFilter).filter(inst => categoryIs.matchesForTraining(inst.categories).isDefined)) {
-                                    val isCat = categoryIs.matchesForTraining(inst.categories)
-                                    if(isCat.isDefined && isCat.get && math.random < (targetSize.toDouble/numTargetInst)) {
-                                        writer.write(inst.toJson + "\n")
-                                        writtenInstances1 += 1
-                                    }
-                                    else if(isCat.isDefined && !isCat.get && math.random < (targetSize.toDouble/numOtherInst)) {
-                                        writer.write(inst.toJson + "\n")
-                                        writtenInstances2 += 1
-                                    }
-                                }
-                                writer.close()
+                        
+                        val writer = new BufferedWriter(new FileWriter(fileHandle.file))
+                        
+                        writer.write(source.header.toJson + "\n")
+                        for(inst <- source.iterator.filter(preFilter).filter(inst => categoryIs.matchesForTraining(inst.categories).isDefined)) {
+                            val isCat = categoryIs.matchesForTraining(inst.categories)
+                            if(isCat.isDefined && isCat.get && math.random < (targetSize.toDouble/numTargetInst)) {
+                                writer.write(inst.toJson + "\n")
+                                writtenInstances1 += 1
                             }
-                            case RejectWriteFile => throw new RuntimeException("could not write file")
-                            case Error(msg) => throw new RuntimeException(msg)
+                            else if(isCat.isDefined && !isCat.get && math.random < (targetSize.toDouble/numOtherInst)) {
+                                writer.write(inst.toJson + "\n")
+                                writtenInstances2 += 1
+                            }
                         }
+                        writer.close()
+                        fileHandle.close()
                         
                         if(verbosity >= 2) println("written instances: pos: " + writtenInstances1 + ",  neg: " + writtenInstances2 + ", total: " + (writtenInstances1 + writtenInstances2))
                     }
@@ -186,17 +173,14 @@ object TrainSetSelection {
                             
                         val instancesIterator = positivesIterator ++ negativesIterator
                         
-                        (FileManager !? WriteFile(targetFile)) match {
-                            case AcceptWriteFile(writer) => {
-                                writer.write(source.header.toJson + "\n")
-                                for(inst <- instancesIterator) {
-                                    writer.write(inst.toJson + "\n")
-                                }
-                                writer.close()
-                            }
-                            case RejectWriteFile =>
-                            case Error(msg) => throw new RuntimeException(msg)
+                        val writer = new BufferedWriter(new FileWriter(fileHandle.file))
+                        
+                        writer.write(source.header.toJson + "\n")
+                        for(inst <- instancesIterator) {
+                            writer.write(inst.toJson + "\n")
                         }
+                        writer.close()
+                        fileHandle.close()
                     }
                     
                     case PrioritizeMainClass(targetNumInstances) => {
@@ -288,26 +272,21 @@ object TrainSetSelection {
                             })
                         }
                         
-                        (FileManager !? WriteFile(targetFile)) match {
-                            case AcceptWriteFile(writer) => {
-                                writer.write(source.header.toJson + "\n")
-                                for(inst <- instancesIterator) {
-                                    writer.write(inst.toJson + "\n")
-                                }
-                                writer.close()
-                                
-                                println("written instances: " + (i, j, k))
-                            }
-                            
-                            case RejectWriteFile => 
-                            case Error(msg) => throw new RuntimeException(msg)
+                        val writer = new BufferedWriter(new FileWriter(fileHandle.file))
+                        
+                        writer.write(source.header.toJson + "\n")
+                        for(inst <- instancesIterator) {
+                            writer.write(inst.toJson + "\n")
                         }
+                        writer.close()
+                        fileHandle.close
                     }
                     
                     case NoTrainSetSelection => throw new RuntimeException("Should not occur")
                 }
             }
-            case Exists(true) => println("file exists")
+            
+            case AcceptReceiveFile(file) =>
         }
         
         ArffJsonInstancesSource(

@@ -6,22 +6,21 @@ import common.FileManager
 import com.alibaba.fastjson.parser.DefaultJSONParser
 import com.alibaba.fastjson.JSONArray
 import scala.io.Source
+import parser.History
+import classifier.BalancedTrainSetSelection
 
 object Test {
     
     def main(args: Array[String]) {
-        val input = Source.fromFile("reports_not_only_main_class_not_normalized/no-formulas-not-stemmed").getLines
-        input.next
+        val corpus = ArffJsonInstancesSource("C:/Users/Simon/Projekte/javascala/workspace/ClassificationFramework/confidenceSpaceCorpus.json")
+        println(corpus.numInstances)
         
-        val parsedInput = input.map(line => {
-            common.Common.jsonToScalaType(new DefaultJSONParser(line).parse())
-        }).toList.asInstanceOf[List[Map[String, Any]]]
+        val l = SvmLightJniLearner(
+            new History() {},
+            BalancedTrainSetSelection(Some(10000))
+        )
         
-        println(parsedInput.sortBy(m => m("topClass").asInstanceOf[String]).map(item => 
-            item("topClass") + "\t" + 
-            item("bestF") + "\t\t\t" + 
-            item("precRecGraphPoints").asInstanceOf[List[Double]].mkString("\t")
-        ).mkString("\n"))
+        
     }
 }
 

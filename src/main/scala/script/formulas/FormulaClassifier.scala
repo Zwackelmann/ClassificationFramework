@@ -19,24 +19,26 @@ import classifier.Classifier
 import scala.collection.mutable
 import filter.NormalizeVectorFilter
 import filter.OddsRatioFilter2
-import classifier.CategoryIsMSC
+import classifier.CategoryIsMscSome
+import filter.ScaleVectorFilter
+import filter.BinarizeVectorFilter
 
 object FormulaClassifier {
     def main(args: Array[String]) {
         try {
-            common.Path.rootFolder = "cikm"
+            common.Path.rootFolder = "text-math-corpus"
             println("calculate statistics...")
             
-            val corpus = ArffJsonInstancesSource(Path.rootFolder + "/arffJson/corpus.json")
-            val ((trainSet, tuningSet, testSet), _) = TrainTuningTestSetSelection.getSets(100, "cikm", corpus, (0.7, 0.3, 0.0))
+            val corpus = ArffJsonInstancesSource(Path.rootFolder + "/arffJson/merged-corpus-discrete.json")
+            val ((trainSet, tuningSet, testSet), _) = TrainTuningTestSetSelection.getSets(100, "merged-descrete", corpus, (0.7, 0.3, 0.0))
             
-            val histogram = new mutable.HashMap[String, Int]() {
+            /*val histogram = new mutable.HashMap[String, Int]() {
                 override def default(key: String) = 0
             }
             
             for(doc <- trainSet; cat <- doc.categories.map(c => c.substring(0, 2)).distinct) {
                 histogram(cat) = histogram(cat) + 1
-            }
+            }*/
             
             val layer = 1
             val minOccurences = 100
@@ -44,10 +46,12 @@ object FormulaClassifier {
             val learner = List((SvmLightJniLearner(
                 new History(),
                 BalancedTrainSetSelection(Some(10000))
-            ), "flat"), (SvmLightJniLearner(
-                new History() with TfIdfFilter.Appendix,
+            ), "flat")/*, (SvmLightJniLearner(
+                new History() 
+                    // with BinarizeVectorFilter.Appendix
+                    with TfIdfFilter.Appendix,
                 BalancedTrainSetSelection(Some(10000))
-            ), "tfidf"), (SvmLightJniLearner(
+            ), "tfidf")*//*, (SvmLightJniLearner(
                 new History() with TfIdfFilter.Appendix with NormalizeVectorFilter.Appendix,
                 BalancedTrainSetSelection(Some(10000))
             ), "tfidf-norm"), (SvmLightJniLearner(
@@ -62,12 +66,12 @@ object FormulaClassifier {
                     val orThreshold = 1.0
                 },
                 BalancedTrainSetSelection(Some(10000))
-            ), "norm-or-1.0"))
+            ), "norm-or-1.0")*/)
             
             val firstLevelClasses = 
-                // List("05", "11", "14", "16", "20", "30", "32", "34", "35", "45", "53", "60", "68")
-                common.Common.topClasses
-                .map(CategoryIsMSC.top(_))
+                List("05", "11", "14", "16", "20", "30", "32", "34", "35", "45", "53", "60", "68")
+                //common.Common.topClasses
+                .map(CategoryIsMscSome.top(_))
             
             for((l, name) <- learner) {
                 println("start " + name)
@@ -85,7 +89,7 @@ object FormulaClassifier {
                     
                     val reportStr = "{" + 
                         "\"topClass\" : \"" + cat.topClass.get + "\", " + 
-                        "\"numTrainInstances\" : " + histogram(cat.filenameExtension.substring(0, 2)) + ", " + 
+                        // "\"numTrainInstances\" : " + histogram(cat.filenameExtension.substring(0, 2)) + ", " + 
                         "\"bestF\" : " + bestF + ", " +  
                         "\"precRecGraphPoints\" : " + "[" + precRecPoints.map(p => p._2).mkString(",") + "]" +
                     "}\n"
@@ -96,7 +100,7 @@ object FormulaClassifier {
                     macroFMeasureAccu += bestF
                 }
             
-                val writer = new BufferedWriter(new FileWriter(new File("all-features-flat")))
+                val writer = new BufferedWriter(new FileWriter(new File("results-text-formula-merged-" + name)))
                 writer.write("[\"makro-f\" : " + (macroFMeasureAccu / count) + "]\n")
                 writer.write(b.toString())
                 

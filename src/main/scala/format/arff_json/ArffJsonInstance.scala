@@ -103,6 +103,7 @@ object ArffJsonInstance {
                 .zip(_dataList)
                 .filter(_._2 match {
                     case d: Double => d != 0.0
+                    case i: Int => i != 0
                     case _ => true
                 })
                 .toMap

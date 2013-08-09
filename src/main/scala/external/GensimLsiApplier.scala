@@ -37,18 +37,29 @@ object GensimLsiFilter {
         abstract override def apply(categoryIs: CategoryIs) = super.apply(categoryIs) :+ GensimLsiFilter(numLsiDims)
     }
     
-    def main(args: Array[String]) {
-        Path.rootFolder = "data_mini"
-        
+    def main(args: Array[String]) = try {
         val source = ArffJsonInstancesSource(List(
-            ArffJsonInstance("1", List("a", "b"), List(1.0, 2.5, -2.4)),
-            ArffJsonInstance("2", List("a", "c"), List(3.45, 0.0, 0.1)),
-            ArffJsonInstance("3", List("b"), List(-1.4, -2.5, -100.0))
-        ),
-        ArffJsonHeader(3))
+                 ArffJsonInstance("1", List(), Map( 0 -> 9.2670, 1 -> 11.1720,  2 -> 8.8520,  6 -> 0.5850,  8 -> 8.5871), 14),
+                 ArffJsonInstance("2", List(), Map( 2 -> 5.2651, 6 ->  0.5850,  9 -> 4.0971                            ), 14), 
+                 ArffJsonInstance("3", List(), Map( 4 -> 8.5466, 6 ->  0.5850,  9 -> 3.1699                            ), 14),
+                 ArffJsonInstance("4", List(), Map( 3 -> 9.2670, 7 ->  9.2670, 12 -> 9.2670, 13 -> 8.5871              ), 14),
+                 ArffJsonInstance("5", List(), Map(10 -> 4.7549                                                        ), 14),
+                 ArffJsonInstance("6", List(), Map( 4 -> 6.8501, 5 -> 10.3399,  6 -> 0.5850, 10 -> 7.6195, 11 -> 9.8419), 14)
+            ),
+            ArffJsonHeader(14)
+        )
         
-        val lsiFilter = GensimLsiFilter(2)(source)
-        source.applyFilter(lsiFilter)
+        val lsiFilter = GensimLsiFilter(3)(source)
+        
+        val newInst = lsiFilter.applyFilter(
+            ArffJsonInstancesSource(List(
+                ArffJsonInstance("7", List(), Map(4 -> 1.5850, 11 -> 2.5850), 14)
+            ), ArffJsonHeader(14))
+        )
+        
+        println(newInst.mkString("\n"))
+    } catch {
+        case _: Throwable => FileManager.quit
     }
 }
 
@@ -56,18 +67,20 @@ object GensimLsiFilter {
 abstract class GensimLsiFilter(val numTopics: Int) extends GlobalFilter {
     import common.Common.verbosity
     
-    var modelFilename = common.Common.randomStream().map(d => (d*9).toInt).take(32).mkString
-    def modelFile = (GensimLsiFilter.modelPath / modelFilename).file
+    lazy val modelFilename = common.Common.randomStream().map(d => (d*9).toInt).take(32).mkString
+    var modelFile: File = _
     
     def builtModel(source: ArffJsonInstancesSource) {
         val (intancesFile, isTmpInstancesFile) = {
             source match {
                 case co: ContentDescribable =>
                     if(!source.saved) source.save
+                    modelFile = (GensimLsiFilter.modelPath / modelFilename).file
                     (FileManager.fullFilename2SafeFile(source.fullFilename), false)
                 case _ => 
-                    val filename = "tmpBeforeLsi"
+                    val filename = "tmpTrainLsi"
                     source.save(filename)
+                    modelFile = new File(modelFilename)
                     (new File(filename), true)
             }
         }
@@ -107,7 +120,10 @@ abstract class GensimLsiFilter(val numTopics: Int) extends GlobalFilter {
                     if(!inst.saved) inst.save
                     (FileManager.fullFilename2SafeFile(inst.fullFilename), false)
                 case _ => 
-                    (new File("tmpBeforeLsi"), true)
+                    val filename = "tmpApplyLsi"
+                    inst.save(filename)
+                    modelFile = new File(modelFilename)
+                    (new File(filename), true)
             }
         }
 

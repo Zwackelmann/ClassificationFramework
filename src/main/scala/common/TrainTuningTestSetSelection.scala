@@ -31,24 +31,17 @@ object TrainTuningTestSetSelection {
         val countPerCat: Map[String, Int] = base match {
             case describableSource: ContentDescribable => {
                 val statFilename = "data/" + describableSource.contentDescription.filename + "_stat"
-                (FileManager !? FileExists(statFilename)) match {
-                    case Exists(true) => {
-                        (FileManager !? ReceiveFile(statFilename, true)) match {
-                            case AcceptReceiveFile(file) => {
-                                val arr = ObjectToFile.readObjectFromFile(file).asInstanceOf[Array[Pair[String, Int]]]
-                                arr.toMap
-                            }
-                            case FileNotExists => throw new RuntimeException("file " + statFilename + " does not exist")
-                            case Error(msg) => throw new RuntimeException(msg)
-                        }
+                (FileManager !? CreateOrReceiveFile(statFilename)) match {
+                    case AcceptReceiveFile(file) => {
+                        val arr = ObjectToFile.readObjectFromFile(file).asInstanceOf[Array[Pair[String, Int]]]
+                        arr.toMap
                     }
-                    case Exists(false) => {
+                    case AcceptCreateFile(fileHandle) => {
                         val map = calcCatDistribution(base)
                         
                         val arr: Array[Pair[String, Int]] = map.toArray
-                        (FileManager !? CreateFile(statFilename, true, ((file) => {
-                            ObjectToFile.writeObjectToFile(arr, file)
-                        })))
+                        ObjectToFile.writeObjectToFile(arr, fileHandle.file)
+                        fileHandle.close
                         
                         map
                     }

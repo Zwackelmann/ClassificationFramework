@@ -20,13 +20,14 @@ import classifier.BalancedTrainSetSelection
 import scala.collection.mutable
 import filter.Filter
 import filter.SelectionFilter
-import classifier.CategoryIsMSC
+import classifier.CategoryIsMsc
 import classifier.CategorizationHierarchy
+import classifier.CategoryIsMscSome
 
 object AllClassesForDocument {
     def main(args: Array[String]) {
         common.Path.rootFolder = "data_try_train_set_selection"
-        val toolset = AllClassesForDocument()
+        val toolset = AllClassesForDocument(0)
         val x = toolset.findCategories("geometric proof of Jungs theorem on factorisation of automorphisms", "theory of algebraic surfaces theorem on factorisation of automorphisms simple combinatorial argument birational transformations")
         println(x)
     }
@@ -47,7 +48,7 @@ object AllClassesForDocument {
         }
     }
     
-    def apply() = {
+    def apply(depth: Int) = { // depth examples: 0 => only first layer, 2 => down to the third layer
         val corpus = ArffJsonInstancesSource(common.Path.rootFolder + "/arffJson/corpus.json")
         
         val ((trainSet, tuningSet, testSet), c) = TrainTuningTestSetSelection.getSets(100, "prod", corpus, (0.7, 0.3, 0.0))
@@ -94,11 +95,12 @@ object AllClassesForDocument {
                         BalancedTrainSetSelection(Some(10000))
                     )
             }),
-            CategoryIsMSC(None, None, None),
+            CategoryIsMscSome(None, None, None),
             catsForLevel,
             trainSet,
             tuningSet,
-            0
+            0,
+            depth
         )
         
         val header = ArffJsonHeader.jsonToArffJsonHeader("""{"relation-name" : "final_format", "attributes" : [{"name" : "title", "type" : "string"}, {"name" : "abstract", "type" : "string"}, {"name" : "journals", "type" : "string"}, {"name" : "terms", "type" : "string"}]}""")
@@ -111,7 +113,8 @@ object AllClassesForDocument {
         catsForLevel: List[List[CategoryIs with CategorizationHierarchy]],
         trainSet: ArffJsonInstancesSource with ContentDescribable,
         tuningSet: ArffJsonInstancesSource with ContentDescribable,
-        layer: Int
+        layer: Int,
+        depth: Int
     ): Map[CategoryIs with CategorizationHierarchy, CategoryToolset] = {
         println(parentCat)
         (for(cat <- catsForLevel(layer).filter(cat => cat.parent.filenameExtension == parentCat.filenameExtension)) yield {
@@ -120,8 +123,8 @@ object AllClassesForDocument {
             val mapper = mapperCached(learner, trainSet, cat)
             val classifier = learner.classifier(trainSet, cat)
             
-            val children = if(layer < 2) {
-                categoryToolsets(learnerFun, cat, catsForLevel, trainSet, tuningSet, layer+1)
+            val children = if(layer < depth) {
+                categoryToolsets(learnerFun, cat, catsForLevel, trainSet, tuningSet, layer+1, depth)
             } else {
                 Map[CategoryIs with CategorizationHierarchy, CategoryToolset]()
             }
@@ -135,21 +138,21 @@ object AllClassesForDocument {
             case 1 => (
                 ((c: String) => true), 
                 ((c: String) => c.substring(0, 2)), 
-                ((c: String) => CategoryIsMSC.top(c.substring(0, 2))),
+                ((c: String) => CategoryIsMscSome.top(c.substring(0, 2))),
                 ((c: String) => c.substring(0, 2))
             )
             
             case 2 => (
                 ((c: String) => c.substring(2, 3) != "-"), 
                 ((c: String) => c.substring(0, 3)), 
-                ((c: String) => CategoryIsMSC.topAndMiddle(c.substring(0, 2), c.substring(2, 3))),
+                ((c: String) => CategoryIsMscSome.topAndMiddle(c.substring(0, 2), c.substring(2, 3))),
                 ((c: String) => c.substring(0, 2))
             )
             
             case 3 => (
                 ((c: String) => c.substring(2, 3) != "-" && c.substring(3, 5).toLowerCase != "xx"), 
                 ((c: String) => c), 
-                ((c: String) => CategoryIsMSC.topMiddleAndLeave(c.substring(0, 2), c.substring(2, 3), c.substring(3, 5))),
+                ((c: String) => CategoryIsMscSome.topMiddleAndLeave(c.substring(0, 2), c.substring(2, 3), c.substring(3, 5))),
                 ((c: String) => c.substring(0, 3))
             )
         }
@@ -193,8 +196,32 @@ class AllClassesForDocument(toolset: Map[CategoryIs with CategorizationHierarchy
         classifyRecursive(toolset, doc, header).map(pair => (pair._1.filenameExtension, pair._2))
     }
     
-    
-    
+    def categoryCertainies(title: String, abstractText: String): List[(String, Double)] = {
+        def escape(str: String) = str.replaceAll("\\s+", " ").replaceAllLiterally("\\", "\\\\").replaceAllLiterally("\"", "\\\"")
+        
+        categoryCertainies(ArffJsonInstance(
+            """[["",[]],["%s","%s",[],[]]]""".format(escape(title), escape(abstractText)),
+            header
+        ))
+    }
+        
+    def categoryCertainies(doc: ArffJsonInstance): List[(String, Double)] = {
+        def f(toolsets: Map[CategoryIs with CategorizationHierarchy, AllClassesForDocument.CategoryToolset], inst: ArffJsonInstance, header: ArffJsonHeader): List[Pair[CategoryIs, Double]] = {
+            val certainties = (for((cat, toolset) <- toolsets) yield {
+                val source = ArffJsonInstancesSource(List(doc), header)
+                
+                val mappedSource = toolset.mapper(source)
+                val classification = toolset.classifier.calculateClassifications(mappedSource).head
+                
+                val certainty = toolset.thresholdFunction.classificationToCertainty(classification.classification)
+                List((cat, certainty)) ++ f(toolset.children, inst, header)
+            }).flatten
+            
+            certainties.toList
+        }
+        
+        f(toolset, doc, header).map(pair => (pair._1.filenameExtension, pair._2))
+    }
 }
 
 

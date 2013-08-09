@@ -27,9 +27,9 @@ object ContentDescription {
 case class ContentDescription(val base: String, val set: ContentDescription.Set, val formatHistory: List[(FilterFactory, ContentDescription)]) {
     def filename: String = base + "-" + set.filenameAppendix + (if(!formatHistory.isEmpty) ("_" + (formatHistory.map(_._1.historyAppendix).mkString("_")) + "__" + (formatHistory.map(_._2.filename)).mkString("_")) else "")
     def fullFilename = arffJsonPath / (filename + ".json")
-    def fileExists = (FileManager !? FileExists(fullFilename)) match {
-        case Exists(b) => b
-        case Error(msg) => throw new RuntimeException(msg)
+    def fileExists = (FileManager !? DoesFileExist(fullFilename)) match {
+        case FileExists => true
+        case FileNotExists => false
     }
     
     def dropLastFilterFactory = ContentDescription(base, set, formatHistory.dropRight(1))

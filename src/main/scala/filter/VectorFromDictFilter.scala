@@ -495,7 +495,7 @@ object VectorFromDictFilter {
             override def toString = {
                 "[" + (text match {
                     case zblRe(nr) => nr
-                    case x => text
+                    case x => x
                 }) + "]"
             }
         }

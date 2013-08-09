@@ -16,7 +16,8 @@ import java.io.BufferedWriter
 import java.io.FileWriter
 import java.io.File
 import classifier.BalancedTrainSetSelection
-import classifier.CategoryIsMSC
+import classifier.CategoryIsMsc
+import classifier.CategoryIsMscSome
 
 object AllClassesForTIBData {
     def main(args: Array[String]) {
@@ -41,7 +42,7 @@ object AllClassesForTIBData {
             BalancedTrainSetSelection(Some(5000))
         )
         
-        val classifiers = (for(cat <- consideredCats.map(c => CategoryIsMSC(c + "-xx"))) yield {
+        val classifiers = (for(cat <- consideredCats.map(c => CategoryIsMscSome(c + "-xx"))) yield {
             cat -> learner.classifier(trainSet, cat)
         }).toMap
         
@@ -52,7 +53,7 @@ object AllClassesForTIBData {
             """[["",[]],["%s","%s",[],[]]]""".format(escape(doc.data(0).asInstanceOf[String]), escape(doc.data(1).asInstanceOf[String])),
             header
         ))) yield {
-            (doc.id -> (for(cat <- consideredCats.map(c => CategoryIsMSC(c))) yield {
+            (doc.id -> (for(cat <- consideredCats.map(c => CategoryIsMscSome(c))) yield {
                 val classifier = classifiers(cat)
                 if(classifier.classifications(testSet)(0).classification >= 0) List(cat)
                 else List()

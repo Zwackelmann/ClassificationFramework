@@ -35,7 +35,7 @@ object ArffJson2Joachims {
         convert(inst, outFile, (
             (mscClasses) => {
                 val isTarget = classFun(mscClasses)
-                (if(isTarget.isDefined && isTarget.get) "+1" else if(isTarget.get) "-1" else "0")
+                (if(isTarget.isDefined && isTarget.get) "+1" else if(isTarget.isDefined) "-1" else "0")
             }
         ))
     }

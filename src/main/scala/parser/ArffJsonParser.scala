@@ -13,14 +13,6 @@ object ArffJsonParser {
     val loop = new Breaks;
     
     def parseLazy(str: String, numAttributes: Int, debug: Boolean = false) = {
-        //if(debug) common.Time(10000) {
-        //    parseLazy2(str, numAttributes, debug)
-        //} else {
-            parseLazy2(str, numAttributes, debug)
-        //}
-    }
-    
-    def parseLazy2(str: String, numAttributes: Int, debug: Boolean = false) = {
         var state = 0
         val valueBuffer = new StringBuilder()
         

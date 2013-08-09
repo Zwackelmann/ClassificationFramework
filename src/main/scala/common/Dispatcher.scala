@@ -16,7 +16,7 @@ object Dispatcher {
         
         def act() {
             loop {
-                react {
+                receive {
                     case t: Task =>
                         processTask = true
                         t.fun()
@@ -54,7 +54,7 @@ class Dispatcher(val numWorkers: Int) extends Actor {
         val waitingWorkSenders = new Queue[(OutputChannel[Any], Task)]()
 
         loop {
-            react {
+            receive {
                 case GiveMeWork =>
                     if(!waitingWorkSenders.isEmpty) {
                         val waitingWorkSender = waitingWorkSenders.dequeue

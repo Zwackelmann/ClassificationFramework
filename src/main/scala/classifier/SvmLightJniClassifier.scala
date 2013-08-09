@@ -25,12 +25,11 @@ object SvmLightJniClassifier {
     SVMLightInterface.SORT_INPUT_VECTORS = false
     
     def load(fullFilename: String, parent: Option[Learner] = None) = {
-        val savedObject = (FileManager !? ReceiveFile(fullFilename, true)) match {
+        val savedObject = (FileManager !? ReceiveFile(fullFilename)) match {
             case AcceptReceiveFile(file) => {
                 common.ObjectToFile.readObjectFromFile(file).asInstanceOf[Array[Any]]
             }
             case FileNotExists => throw new RuntimeException(fullFilename + " does not exist")
-            case Error(msg) => throw new RuntimeException(msg)
         }
         
         val model = savedObject(0).asInstanceOf[SVMLightModel]
@@ -54,7 +53,11 @@ object SvmLightJniClassifier {
         val numAttributes = mappedInst.header.numAttributes
         val trainData: Array[LabeledFeatureVector] = (
             mappedInst.map(i => inst2LabeledFeatureVector(i, categoryIs)).toList :+
-            dummyFeatureVector(numAttributes)
+            dummyFeatureVector(numAttributes) // checked if this changes anything in the result.
+            // I tested the impact on a quite small amount of documents, because if there is an effect then
+            // it should be biggest when a small amount of training documents are involved.
+            // In the tests, no difference in any classifier could be registered with an accuracy of ten digits 
+            // after the decimal point...
         ).toArray
         
         val model = {
@@ -80,12 +83,16 @@ object SvmLightJniClassifier {
             case d: DenseData => d.dataList.size
         }
         
-        val (indexes: List[Int], values: List[Double]) = inst match {
-            case sp: SparseData => 
-                val x: Pair[List[Int], List[Double]] = (sp.sparseData.toList.sortBy(_._1)).unzip
-                (x._1.map(_ + 1), x._2)
-            case d: DenseData => ((1 until (numNonZeroFeatures + 1)), d.data)
-            case x => x.getClass
+        val (indexes: List[Int], values: List[Double]) =  try {
+            inst match {
+                case sp: SparseData => 
+                    val x: Pair[List[Int], List[Double]] = (sp.sparseData.toList.sortBy(_._1)).unzip
+                    (x._1.map(_ + 1), x._2)
+                case d: DenseData => ((1 until (numNonZeroFeatures + 1)).toList, d.data)
+                case x => x.getClass
+            }
+        } catch {
+            case x: Throwable => println(inst); throw x;
         }
         
         new LabeledFeatureVector(realValue, indexes.toArray, values.toArray)
@@ -119,9 +126,14 @@ class SvmLightJniClassifier(val model: SVMLightModel, val trainBaseCD: Option[Co
             targetClassDef
         )
         
-        (FileManager !? CreateFile(fullFilename, true, (file) => {
-            common.ObjectToFile.writeObjectToFile(objToSave, file)
-        }))
+        (FileManager !? CreateFile(fullFilename)) match {
+            case AcceptCreateFile(fileHandle) => {
+                common.ObjectToFile.writeObjectToFile(objToSave, fileHandle.file)
+                fileHandle.close
+            }
+            case RejectCreateFile => throw new RuntimeException("could not save classifier")
+        }
+            
     }
     
     override def toString = "SvmLightJniClassifier(trainBase: " + trainBaseContentDescription + ", targetClassDef: " + targetClassDef + ")"

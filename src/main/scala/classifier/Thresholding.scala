@@ -27,28 +27,43 @@ trait Thresholding extends Learner {
             Path.thresholdsPath / resultsFilename
         }
         
-        val threshold = (FileManager !? ReceiveFile(thresholdPath, false)) match {
+        val threshold = (FileManager !? CreateOrReceiveFile(thresholdPath)) match {
             case AcceptReceiveFile(file) => {
-                if(file.exists) {
-                    common.ObjectToFile.readObjectFromFile(file).asInstanceOf[Double]
-                } else {
-                    val classifications = super.classifications(trainSet, tuningSet, cat)
-                    
-                    // TODO find out why this crashes in 1 of 10000 cases.... 
-                    val bestThreshold = try {
-                        RawClassification.findBestThreshold(RawClassification.normalize(classifications))
-                    } catch {
-                        case _: Throwable => 0.0
-                    }
-                    common.ObjectToFile.writeObjectToFile(bestThreshold, file)
-                    bestThreshold
-                }
+                common.ObjectToFile.readObjectFromFile(file).asInstanceOf[Double]
             }
-            case Error(msg) => throw new RuntimeException(msg)
+            case AcceptCreateFile(fileHandle) => { 
+                val classifications = super.classifications(trainSet, tuningSet, cat)
+                
+                // TODO find out why this crashes in 1 of 10000 cases.... 
+                val bestThreshold = try {
+                    RawClassification.findBestThreshold(RawClassification.normalize(classifications))
+                } catch {
+                    case _: Throwable => 0.0
+                }
+                common.ObjectToFile.writeObjectToFile(bestThreshold, fileHandle.file)
+                fileHandle.close
+                bestThreshold
+            }
         }
+        
         RawClassification.withThreshold(c, threshold)
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

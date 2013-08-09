@@ -47,9 +47,9 @@ object RawClassification {
     }
     
     def fromFile(fullFilename: String) = {
-        (FileManager !? LinesOfFile(fullFilename)) match {
-            case AcceptLinesOfFile(lines) => {
-                lines.map(RawClassification(_)).toList
+        (FileManager !? ReceiveFile(fullFilename)) match {
+            case AcceptReceiveFile(file) => {
+                ScalaSource.fromFile(file).getLines.map(RawClassification(_)).toList
             }
             case FileNotExists => throw new RuntimeException(fullFilename + " file does not exist")
             case Error(msg) => throw new RuntimeException(msg)
@@ -57,15 +57,16 @@ object RawClassification {
     }
     
     def save(classifications: Iterable[RawClassification], file: Path) {
-        (FileManager !? WriteFile(file)) match {
-            case AcceptWriteFile(writer) => {
+        (FileManager !? CreateFile(file)) match {
+            case AcceptCreateFile(fileHandle) => {
+                val writer = new BufferedWriter(new FileWriter(fileHandle.file))
                 for(classification <- classifications) {
                     writer.write(classification.toJson + "\n")
                 }
                 writer.close
+                fileHandle.close
             }
-            case RejectWriteFile => 
-            case Error(msg) => throw new RuntimeException(msg)
+            case RejectCreateFile => 
         }
     }
     
@@ -399,11 +400,11 @@ object CertaintyToThresholdFunction {
         
         path match {
             case Some(path) => {
-                (FileManager !? FileExists(path)) match {
-                    case Exists(true) => {
+                (FileManager !? DoesFileExist(path)) match {
+                    case FileExists => {
                         CertaintyToThresholdFunction.load(path)
                     }
-                    case Exists(false) => {
+                    case FileNotExists => {
                         val fun = classifier2CertaintyFunction(classifier, trainSet, tuningSet)
                         fun.save(path)
                         fun
@@ -452,8 +453,10 @@ object CertaintyToThresholdFunction {
     }
     
     def load(fullFilename: String) = {
-        (FileManager !? LinesOfFile(fullFilename)) match {
-            case AcceptLinesOfFile(lines) => {
+        (FileManager !? ReceiveFile(fullFilename)) match {
+            case AcceptReceiveFile(file) => {
+                val lines = ScalaSource.fromFile(file).getLines()
+                
                 new CertaintyToThresholdFunction(
                     lines.map(line => {
                         val jarr = new DefaultJSONParser(line).parse().asInstanceOf[JSONArray]
@@ -467,7 +470,6 @@ object CertaintyToThresholdFunction {
                 )
             }
             case FileNotExists => throw new RuntimeException(fullFilename + " does not exist")
-            case Error(msg) => throw new RuntimeException(msg)
         }
     }
 }
@@ -504,15 +506,16 @@ class CertaintyToThresholdFunction(val precThdPairs: List[Pair[Double, Double]])
     }
     
     def save(fullFilename: String) {
-        (FileManager !? WriteFile(fullFilename)) match {
-            case AcceptWriteFile(writer) => {
+        (FileManager !? CreateFile(fullFilename)) match {
+            case AcceptCreateFile(fileHandle) => {
+                val writer = new BufferedWriter(new FileWriter(fileHandle.file))
                 for(precThdPair <- precThdPairs) {
                     writer.write("[" + precThdPair._1 + "," + precThdPair._2 + "]\n")
                 }
                 writer.close()
+                fileHandle.close
             }
-            case RejectWriteFile => throw new RuntimeException("write file " + fullFilename + " rejected")
-            case Error(msg) => throw new RuntimeException(msg)
+            case RejectCreateFile => throw new RuntimeException("write file " + fullFilename + " rejected")
         }
     }
 }

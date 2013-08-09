@@ -10,17 +10,7 @@ object ReadIndex {
         val document = Map( 1 -> 3.0, 2 -> 1.0, 3 -> 2.0, 4 -> 1.0, 6 -> 1.0, 7 -> 1.0 )
         
         val i = Index(new StringReader(indexStr))
-        val reWeightedDocument = {
-            val doc = new mutable.HashMap[Int, Double]
-            val leafNodes = document.filterKeys(k => i.findNode(k).isLeaf).map(kv => i.findNode(kv._1)).toList
-            
-            
-            
-            for(leafNode <- leafNodes) {
-                doc(leafNode.)
-            }
-        }
-        
+        val reWeightedDocument = i.reweight(document, 0.5)
         
         println(reWeightedDocument)
     }

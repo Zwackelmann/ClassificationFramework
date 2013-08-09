@@ -144,12 +144,11 @@ object JoachimsSVMClassifier {
     val modelPath = new Path("svm_models") !
     val idAppendix = "svm"
     def load(fullFilename: String, learner: Option[Learner] = None) = {
-        val savedObject = (FileManager !? ReceiveFile(fullFilename, true)) match {
+        val savedObject = (FileManager !? ReceiveFile(fullFilename)) match {
             case AcceptReceiveFile(file) => {
                 common.ObjectToFile.readObjectFromFile(file).asInstanceOf[Array[Any]]
             }
             case FileNotExists => throw new RuntimeException(fullFilename + " does not exist")
-            case Error(msg) => throw new RuntimeException(msg)
         }
         
         new JoachimsSVMClassifier(
@@ -219,9 +218,12 @@ class JoachimsSVMClassifier(_options: Map[String, List[String]], _modelFilename:
             None
         )
         
-        (FileManager !? CreateFile(fullFilename, true, file => {
-            common.ObjectToFile.writeObjectToFile(objToSave, file)
-        }))
+        (FileManager !? CreateFile(fullFilename)) match {
+            case AcceptCreateFile(fileHandle) => 
+                common.ObjectToFile.writeObjectToFile(objToSave, fileHandle.file)
+                fileHandle.close
+            case RejectCreateFile => throw new RuntimeException("Could not save SVM")
+        }
     }
     
     override def toString = "SvmClassifier(trainBase: " + trainBaseContentDescription + ", targetClassDef: " + targetClassDef + ")"

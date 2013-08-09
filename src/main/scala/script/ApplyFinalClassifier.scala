@@ -54,7 +54,11 @@ import common.FileManager
 import common.Path
 import java.util.Scanner
 import classifier.CategorizationHierarchy
-import classifier.CategoryIsMSC
+import classifier.CategoryIsMsc
+import filter.SimpleTextToFeatureVectorFilter
+import classifier.CategoryIsMscMain
+import classifier.CategoryIsMscSome
+import classifier.CategoryIsMscOnly
 
 object Halt {
     private val s = new Scanner(System.in)
@@ -69,22 +73,23 @@ object ApplyFinalClassifier {
         val arguments = {
             /// args.toList
             List("corpus.json", "prod", "1")
+            // List("confidenceSpaceCorpus.json", "conf", "1")
         }
         if(arguments.size != 3) {
             println("Erstes Argument: Corpus dateiname data/arffJson\nZweites Argument name des Korpus\nDrittes Argument layer fuer die Klassifizierung")
             exit(1)
         } 
         try {
-            common.Path.rootFolder = "data_try_train_set_selection2"
+            common.Path.rootFolder = "data_filter_irrelevant_papers"
+                
             println("calculate statistics...")
             val corpusFilename = arguments(0)
             
             val corpus = ArffJsonInstancesSource(Path.rootFolder + "/arffJson/" + corpusFilename)
             
-            val ((trainSet, tuningSet, testSet), c) = TrainTuningTestSetSelection.getSets(100, arguments(1), corpus, (0.7, 0.3, 0.0))
-            // val ((trainSet, tuningSet, testSet), c) = TrainTuningTestSetSelection.getSets(100, arguments(1), corpus, (0.6, 0.2, 0.2))
+            val ((trainSet, tuningSet, testSet), c) = TrainTuningTestSetSelection.getSets(100, arguments(1), corpus, (0.6, 0.2, 0.2))
             
-            val consideredCategories = c map (c => CategoryIsMSC(c))
+            // val consideredCategories = c map (c => CategoryIsMSC(c))
             
             val layer = arguments(2).toInt
             val minOccurences = 100
@@ -96,35 +101,37 @@ object ApplyFinalClassifier {
                 new History() 
                         with AbstractTitleConcat
                         // with CategorySelectionFilter.Appendix
-                        with VectorFromDictFilter.Appendix
+                        with SimpleTextToFeatureVectorFilter.Appendix
+                        // with VectorFromDictFilter.Appendix
                         with TfIdfFilter.Appendix
-                        /*with NormalizeVectorFilter.Appendix*/ { 
+                        with NormalizeVectorFilter.Appendix { 
                     
-                    val selection = cat.parent
-                    val confName = "conf10"
-                    override val minOcc = layer match {
+                    // val confName = "conf11"
+                    // override val minOcc = 3
+                    // val selection = cat.parent
+                    /*override val minOcc = layer match {
                         case 1 => 3
                         case 2 | 3 => 1
                         case _ => throw new RuntimeException("layer must be between 1 and 3")
-                    }
+                    }*/
                 },
                 BalancedTrainSetSelection(Some(10000))
+                //NoTrainSetSelection
             )
             
-            val dispatcher = new Dispatcher(1)
-            dispatcher.start()
-            
-            val thirdLevelClasses = consideredCategories
+            /*val thirdLevelClasses = consideredCategories
             val secondLevelClasses = thirdLevelClasses.map(_.parent)
-            val firstLevelClasses = secondLevelClasses.map(_.parent)
+            val firstLevelClasses = secondLevelClasses.map(_.parent)*/
             
-            /*val targetCategories = (layer match {
-                case 1 => firstLevelClasses
-                case 2 => secondLevelClasses
-                case 3 => thirdLevelClasses
-            }).toList.sortBy(_.filenameExtension)
-            */
-            val targetCategories = List("05", "11", "14", "16", "20", "30", "32", "34", "35", "45", "53", "60", "68").map(c => CategoryIsMSC(c + "-xx"))
+            val targetCategories = ( 
+                // List("05", "11", "14", "16", "20", "30", "32", "34", "35", "45", "53", "60", "68")
+                common.Common.topClasses
+            ).map(c => CategoryIsMscSome.top(c))
+            
+            var avgFAccu = 0.0
+            var count = 0
+            
+            val reportStrings = new StringBuffer()
             
             for((cat, i) <- targetCategories.zipWithIndex) {
                 printProgress(i, targetCategories.size)
@@ -134,399 +141,27 @@ object ApplyFinalClassifier {
                 
                 val precRecPoints = RawClassification.precRecGraphPoints(r)
                 val bestF = bestFmeasure(precRecPoints)
+                avgFAccu += bestF
+                count += 1
+                
+                val numTrainingEamples = corpus.count(doc => { val m = cat.matchesForTraining(doc.categories); (if(m.isDefined) m.get else false) } )
+                
                 val reportStr = "{" + 
-                        "\"topClass\" : \"" + cat.topClass.get + "\", " + 
+                        "\"topClass\" : \"" + cat.topClass.get + "\", " +
+                        "\"numTrainingExamples\" : " + numTrainingEamples + ", " + 
                         "\"bestF\" : " + bestF + ", " +  
                         "\"precRecGraphPoints\" : " + "[" + precRecPoints.map(p => p._2).mkString(",") + "]" +
                     "}\n"
                 println(reportStr)
-                // dispatcher !? Task(() => {
-                    // jsvmTitleLearner.classifications(trainSet, tibTestSet, cat)
-                // })
+                
+                reportStrings.append(reportStr)
             }
-            dispatcher !? Quit
             println("all finished")
             
-            /*launchAsynchronous(categoryGroups) { cat => {
-                val minWordCount = if(layer == 1) 3 else 1
-                val orTh = if(layer == 1) 5.0 else 2.0
-                val maxTrainSetSize = 10000
-                val numAdaBoostIterations = 20
-                
-                /*val c45AbstractLearner = BoostedC45Learner(
-                    new History() 
-                            with AbstractProjection
-                            with CategorySelectionFilter.Appendix
-                            with VectorFromDictFilter.Appendix
-                            with NormalizeVectorFilter.Appendix
-                            with OddsRatioFilter.Appendix { 
-                        
-                        val selection = cat.parent
-                        val confName = "conf9"
-                        override val minOcc = minWordCount
-                        val orThreshold = orTh
-                        val numWorst = 0
-                    },
-                    PrioritizeMainClass(maxTrainSetSize),
-                    numAdaBoostIterations
-                )
-                
-                val c45TitleLearner = BoostedC45Learner(
-                    new History() 
-                            with TitleProjection
-                            with CategorySelectionFilter.Appendix
-                            with VectorFromDictFilter.Appendix
-                            with NormalizeVectorFilter.Appendix
-                            with OddsRatioFilter.Appendix { 
-                        
-                        val selection = cat.parent
-                        val confName = "conf9"
-                        override val minOcc = minWordCount
-                        val orThreshold = orTh
-                        val numWorst = 0
-                    },
-                    PrioritizeMainClass(maxTrainSetSize),
-                    numAdaBoostIterations
-                )
-                
-                val svmAbstractLearner = SvmLearner(
-                    new History() 
-                            with AbstractProjection
-                            with CategorySelectionFilter.Appendix
-                            with VectorFromDictFilter.Appendix
-                            with TfIdfFilter.Appendix
-                            with NormalizeVectorFilter.Appendix { 
-                        
-                        val selection = cat.parent
-                        val confName = "conf9"
-                        override val minOcc = minWordCount
-                    },
-                    NoTrainSetSelection
-                )
-                
-                val svmTitleLearner = SvmLearner(
-                    new History() 
-                            with TitleProjection
-                            with CategorySelectionFilter.Appendix
-                            with VectorFromDictFilter.Appendix
-                            with TfIdfFilter.Appendix
-                            with NormalizeVectorFilter.Appendix { 
-                        
-                        val selection = cat.parent
-                        val confName = "conf9"
-                        override val minOcc = minWordCount
-                    },
-                    NoTrainSetSelection
-                )*/
-                
-                val c45AbstractLearner = BoostedC45LearnerNT(
-                    new History() 
-                            with AbstractProjection
-                            with CategorySelectionFilter.Appendix
-                            with VectorFromDictFilter.Appendix
-                            with NormalizeVectorFilter.Appendix
-                            with OddsRatioFilter.Appendix { 
-                        
-                        val selection = cat.parent
-                        val confName = "conf9"
-                        override val minOcc = minWordCount
-                        val orThreshold = orTh
-                        val numWorst = 0
-                    },
-                    PrioritizeMainClass(maxTrainSetSize),
-                    numAdaBoostIterations
-                )
-                
-                val c45TitleLearner = BoostedC45LearnerNT(
-                    new History() 
-                            with TitleProjection
-                            with CategorySelectionFilter.Appendix
-                            with VectorFromDictFilter.Appendix
-                            with NormalizeVectorFilter.Appendix
-                            with OddsRatioFilter.Appendix { 
-                        
-                        val selection = cat.parent
-                        val confName = "conf9"
-                        override val minOcc = minWordCount
-                        val orThreshold = orTh
-                        val numWorst = 0
-                    },
-                    PrioritizeMainClass(maxTrainSetSize),
-                    numAdaBoostIterations
-                )
-                
-                val svmAbstractLearner = SvmLearnerNT(
-                    new History() 
-                            with AbstractProjection
-                            with CategorySelectionFilter.Appendix
-                            with VectorFromDictFilter.Appendix
-                            with TfIdfFilter.Appendix
-                            with NormalizeVectorFilter.Appendix { 
-                        
-                        val selection = cat.parent
-                        val confName = "conf9"
-                        override val minOcc = minWordCount
-                    },
-                    NoTrainSetSelection
-                )
-                
-                val svmTitleLearner = SvmLearnerNT(
-                    new History() 
-                            with TitleProjection
-                            with CategorySelectionFilter.Appendix
-                            with VectorFromDictFilter.Appendix
-                            with TfIdfFilter.Appendix
-                            with NormalizeVectorFilter.Appendix { 
-                        
-                        val selection = cat.parent
-                        val confName = "conf9"
-                        override val minOcc = minWordCount
-                    },
-                    NoTrainSetSelection
-                )
-                
-                val c45TitleConcatAbstractLearner = BoostedC45LearnerNT(
-                    new History() 
-                            with AbstractTitleConcat
-                            with CategorySelectionFilter.Appendix
-                            with VectorFromDictFilter.Appendix
-                            with NormalizeVectorFilter.Appendix
-                            with OddsRatioFilter.Appendix { 
-                        val selection = cat.parent
-                        val confName = "conf9"
-                        override val minOcc = minWordCount
-                        val orThreshold = orTh
-                        val numWorst = 0
-                    },
-                    PrioritizeMainClass(maxTrainSetSize),
-                    numAdaBoostIterations
-                )
-                
-                val svmTitleConcatAbstractLearner = SvmLearnerNT(
-                    new History() 
-                            with AbstractTitleConcat
-                            with CategorySelectionFilter.Appendix
-                            with VectorFromDictFilter.Appendix
-                            with TfIdfFilter.Appendix
-                            with NormalizeVectorFilter.Appendix { 
-                        
-                        val selection = cat.parent
-                        val confName = "conf9"
-                        override val minOcc = minWordCount
-                    },
-                    NoTrainSetSelection
-                )
-                
-                val c45JournalLearner = BoostedC45LearnerNT(
-                    new History() 
-                            with JournalProjection
-                            with CategorySelectionFilter.Appendix
-                            with VectorFromDictFilter.Appendix
-                            with NormalizeVectorFilter.Appendix
-                            with OddsRatioFilter.Appendix { 
-                        
-                        val selection = cat.parent
-                        val confName = "conf2"
-                        override val minOcc = 1
-                        val orThreshold = 300.0
-                        val numWorst = 0
-                    },
-                    PrioritizeMainClass(maxTrainSetSize),
-                    numAdaBoostIterations
-                )
-                
-                val c45KeywordLearner = BoostedC45LearnerNT(
-                    new History() 
-                            with TermsProjection
-                            with CategorySelectionFilter.Appendix
-                            with VectorFromDictFilter.Appendix
-                            with NormalizeVectorFilter.Appendix
-                            with OddsRatioFilter.Appendix { 
-                        
-                        val selection = cat.parent
-                        val confName = "conf2"
-                        override val minOcc = 1
-                        val orThreshold = 300.0
-                        val numWorst = 0
-                    },
-                    PrioritizeMainClass(maxTrainSetSize),
-                    numAdaBoostIterations
-                )
-                
-                val svmJournalLearner = SvmLearnerNT(
-                    new History() 
-                            with JournalProjection
-                            with CategorySelectionFilter.Appendix
-                            with VectorFromDictFilter.Appendix
-                            with OddsRatioFilter.Appendix { 
-                        val selection = cat.parent
-                        val confName = "conf2"
-                        val orThreshold = 300.0
-                        val numWorst = 0
-                        override val minOcc = 1
-                    },
-                    NoTrainSetSelection
-                )
-                
-                val svmKeywordsLearner = SvmLearnerNT(
-                    new History() 
-                            with TermsProjection
-                            with CategorySelectionFilter.Appendix
-                            with VectorFromDictFilter.Appendix
-                            with OddsRatioFilter.Appendix { 
-                        val selection = cat.parent
-                        val confName = "conf2"
-                        val orThreshold = 300.0
-                        val numWorst = 0
-                        override val minOcc = 1
-                    },
-                    NoTrainSetSelection
-                )
-                
-                val svmAbstractFlatLearner = SvmLearner(
-                    new History() 
-                            with AbstractProjection
-                            with VectorFromDictFilter.Appendix
-                            with TfIdfFilter.Appendix
-                            with NormalizeVectorFilter.Appendix { 
-                        val confName = "conf9"
-                        override val minOcc = minWordCount
-                    },
-                    NoTrainSetSelection
-                )
-                
-                val jsvmAbstractLearner = SvmLightJniLearner(
-                    new History() 
-                            with AbstractProjection
-                            with CategorySelectionFilter.Appendix
-                            with VectorFromDictFilter.Appendix
-                            with TfIdfFilter.Appendix
-                            with NormalizeVectorFilter.Appendix { 
-                        
-                        val selection = cat.parent
-                        val confName = "conf9"
-                        override val minOcc = minWordCount
-                    },
-                    NoTrainSetSelection
-                )
-                
-                val jsvmUniLearner = SvmLightJniLearner(
-                    new History() 
-                            with AbstractTitleConcat
-                            with CategorySelectionFilter.Appendix
-                            with VectorFromDictFilter.Appendix
-                            with TfIdfFilter.Appendix
-                            with NormalizeVectorFilter.Appendix { 
-                        
-                        val selection = cat.parent
-                        val confName = "conf9"
-                        override val minOcc = minWordCount
-                    },
-                    NoTrainSetSelection
-                )
-                
-                jsvmAbstractLearner.classifications(trainSet, testSet, cat)
-                
-                // check for validity
-                /*val classificationsOnTest = learnerList.map(l => l.classificationsIfCached(testSet, cat))
-                if(classificationsOnTest.forall(_ != None)) {
-                    val ids = classificationsOnTest.map(_.get.map(_.id))
-                    
-                    println(ids.map(_.size).mkString("\n"))
-                    /*val classificationsValid = ids.forall(_.size == ids(0).size) && (ids.map(_.sortBy(c => c)).transpose.map(c => 
-                        if(c.isEmpty) true
-                        else c.forall(_ == c.head)
-                    ).forall(b => b))
-                    
-                    if(!classificationsValid) {
-                        inconsitentCategoryList += cat.filenameExtension
-                    } else {
-                        consitentCategoryList += cat.filenameExtension
-                    }*/
-                }*/
-                
-                // val learnerList = List(c45AbstractLearner, c45TitleLearner/*, c45JournalLearner, c45KeywordLearner*/)
-                // val learnerNames = List("c45AbstractLearner", "c45TitleLearner", "c45JournalLearner", "c45KeywordLearner")
-                
-                // val learnerList = List(c45TitleConcatAbstractLearner/*, svmTitleConcatAbstractLearner, c45KeywordLearner, c45JournalLearner, svmJournalLearner, svmKeywordsLearner, c45AbstractLearner, c45TitleLearner, svmAbstractLearner, svmTitleLearner*/)
-                // val learnerNames = List("c45TitleConcatAbstractLearner"/*, "svmTitleConcatAbstractLearner", "c45Keyword", "c45Journal", "svmJournalLearner", "svmKeywordsLearner", "c45Abstract", "c45Title", "svmAbstract", "svmTitle"*/)
-                
-                // val learnerList = List(svmJournalLearner, svmKeywordsLearner)
-                // val learnerNames = List("svmJournalLearner", "svmKeywordsLearner")
-                
-                // val learnerList = List(c45TitleConcatAbstractLearner)
-                // val learnerNames = List("c45TitleConcatAbstractLearner")
-                
-                // val learnerList = List(c45TitleConcatAbstractLearner)
-                // val learnerNames = List("svmAbstractConcatTitle")
-                
-                // val learnerList = List(svmAbstractLearner)
-                // val learnerNames = List("svmAbstractLearner")
-                
-                // val learnerList = List(svmAbstractFlatLearner)
-                // val learnerNames = List("svmAbstractFlatLearner")
-                
-                val learnerList = List(jsvmAbstractLearner/*svmAbstractLearner, svmTitleLearner, svmJournalLearner, svmKeywordsLearner, c45AbstractLearner, c45TitleLearner, c45JournalLearner, c45KeywordLearner*/)
-                val learnerNames = List("svmAbstractLearner", "svmTitleLearner", "svmJournalLearner", "svmKeywordsLearner", "c45AbstractLearner", "c45TitleLearner", "c45JournalLearner", "c45KeywordLearner")            
-    			
-    			// val learnerList = List(svmTitleConcatAbstractLearner, c45TitleConcatAbstractLearner)
-    			// val learnerNames = List("svmTitleConcatAbstractLearner", "c45TitleConcatAbstractLearner")
-    			
-    			// val classificationOnTestSet = learnerList.map(learner => (learner.classifications(trainSet, testSet, cat)))
-    			// val classificationOnTuningSet = learnerList.map(learner => (learner.classifications(trainSet, tuningSet, cat)))
-    			
-    			/*for((c, name) <- classificationOnTestSet zip learnerNames) {
-    				c match {
-    					case Some(c) => evaluationDataAccumulator(name, c)
-    					case None => println("skipped " + name + " for " + cat.filenameExtension)
-    				}
-    				// evaluationDataAccumulator(name, c)
-    			}
-    			
-    			val normalizedAndThresholdedResults = (for((cTuning, cTest) <- classificationOnTuningSet zip classificationOnTestSet) yield {
-    				if(cTest.isDefined) {
-    					val t = RawClassification.findBestThreshold(cTuning.get)
-    					Some(Pair(
-    						RawClassification.normalize(RawClassification.withThreshold(cTest.get, t)), 
-    						RawClassification.normalize(RawClassification.withThreshold(cTuning.get, t))
-    					))
-    				} else {
-    				    None
-    				}
-    			}).toList
-    			
-    			
-    			val combinations = List((List(0, 1, 4, 5), "allFeaturesSVM")/*, (List(4, 5, 6, 7), "allFeaturesC45"), (List(0, 4), "combineAbstract"), (List(1, 5), "combineTitle"), (List(2, 6), "combineJournal"), (List(3, 7), "combineKeywords")*/)
-    			for((combinationIds, combinationName) <- combinations) {
-    				val results = normalizedAndThresholdedResults.zipWithIndex.filter(i => combinationIds.contains(i._2)).map(_._1)
-    				
-    				if(results.forall(_ != None)) {
-    					val normalizedAndThresholdedTestResults = results.map(_.get._1)
-    					val normalizedAndThresholdedTuningResults = results.map(_.get._2)
-    					
-    					val coofficients = CombineClassifiers.findBestCoofficients(normalizedAndThresholdedTuningResults)
-    					val combinedResult = RawClassification.weightedSumWithCoofficients(normalizedAndThresholdedTestResults, coofficients)
-    					evaluationDataAccumulator(combinationName, combinedResult)
-    				} else {
-    					println("\n\n" + cat.filenameExtension + " skipped for combination\n")
-    				}
-    			}*/
-            }}*/
+            val macroF = (avgFAccu / count)
+            reportStrings.append("macroF: " + macroF)
             
-    		/*val topK = layer match {
-    			case 1 => 10
-    			case 2 => 50
-    			case 3 => 200
-    		}
-    		val writer = new BufferedWriter(new FileWriter(new File("results")));
-    		
-            println("top " + topK)
-            evaluationDataAccumulator.precRecGraphs(Some(topK), writer)
-            
-            println("avg all")
-            evaluationDataAccumulator.precRecGraphs(None, writer)
-    		
-    		writer.close()*/
+            println(reportStrings)
         } catch {
             case ex: Throwable => {
                 ex.printStackTrace()
@@ -604,21 +239,21 @@ object ApplyFinalClassifier {
             case 1 => (
                 ((c: String) => true), 
                 ((c: String) => c.substring(0, 2)), 
-                ((c: String) => CategoryIsMSC.top(c.substring(0, 2))),
+                ((c: String) => CategoryIsMscSome.top(c.substring(0, 2))),
                 ((c: String) => c.substring(0, 2))
             )
             
             case 2 => (
                 ((c: String) => c.substring(2, 3) != "-"), 
                 ((c: String) => c.substring(0, 3)), 
-                ((c: String) => CategoryIsMSC.topAndMiddle(c.substring(0, 2), c.substring(2, 3))),
+                ((c: String) => CategoryIsMscSome.topAndMiddle(c.substring(0, 2), c.substring(2, 3))),
                 ((c: String) => c.substring(0, 2))
             )
             
             case 3 => (
                 ((c: String) => c.substring(2, 3) != "-" && c.substring(3, 5).toLowerCase != "xx"), 
                 ((c: String) => c), 
-                ((c: String) => CategoryIsMSC.topMiddleAndLeave(c.substring(0, 2), c.substring(2, 3), c.substring(3, 5))),
+                ((c: String) => CategoryIsMscSome.topMiddleAndLeave(c.substring(0, 2), c.substring(2, 3), c.substring(3, 5))),
                 ((c: String) => c.substring(0, 3))
             )
         }
@@ -744,8 +379,7 @@ object SvmLightJniLearner {
         
         def fileAppendix = 
             "jsvm_" +
-            "all"
-            //trainSetSelectionDef.filenameAppendix
+            trainSetSelectionDef.filenameAppendix
         
         def targetHistory(targetClassDef: CategoryIs) = history(targetClassDef)
         
@@ -760,30 +394,6 @@ object SvmLightJniLearner {
 }
 
 object SvmLearner {
-    def apply(_history: CategoryIs => List[FilterFactory], trainSetSelection: TrainSetSelectionDefinition) = new Learner with TrainSetSelection with Thresholding {
-        val trainSetSelectionDef: TrainSetSelectionDefinition = trainSetSelection
-        
-        @transient val history = _history
-        
-        def fileAppendix = 
-            "svm_" +
-            "all"
-            //trainSetSelectionDef.filenameAppendix
-        
-        def targetHistory(targetClassDef: CategoryIs) = history(targetClassDef)
-        
-        def trainClassifier(inst: ArffJsonInstancesSource, targetClassDef: CategoryIs): Classifier = new JoachimsSVMClassifier(
-            Map("-v" -> List("0")),
-            inst,
-            targetClassDef, 
-            this
-        )
-        
-        def loadClassifier(fullFilename: String) = JoachimsSVMClassifier.load(fullFilename, Some(this))
-    }
-}
-
-object SvmLearnerNT {
     def apply(_history: CategoryIs => List[FilterFactory], trainSetSelection: TrainSetSelectionDefinition) = new Learner with TrainSetSelection {
         val trainSetSelectionDef: TrainSetSelectionDefinition = trainSetSelection
         
@@ -791,10 +401,9 @@ object SvmLearnerNT {
         
         def fileAppendix = 
             "svm_" +
-            "all"
-            //trainSetSelectionDef.filenameAppendix
+            trainSetSelectionDef.filenameAppendix
         
-        def targetHistory(categoryIs: CategoryIs) = history(categoryIs)
+        def targetHistory(targetClassDef: CategoryIs) = history(targetClassDef)
         
         def trainClassifier(inst: ArffJsonInstancesSource, targetClassDef: CategoryIs): Classifier = new JoachimsSVMClassifier(
             Map("-v" -> List("0")),
@@ -813,8 +422,7 @@ object BoostedC45Learner {
         
         def fileAppendix = 
             "c45-boost-" + numIterations + "_thd_" +
-            "all"
-            // trainSetSelectionDef.filenameAppendix
+            trainSetSelectionDef.filenameAppendix
             
         def targetHistory(targetClassDef: CategoryIs) = history(targetClassDef)
         
@@ -840,8 +448,7 @@ object BoostedC45LearnerNT {
         
         def fileAppendix = 
             "c45-boost-" + numIterations + "_thd_" +
-            "all"
-            // trainSetSelectionDef.filenameAppendix
+            trainSetSelectionDef.filenameAppendix
             
         def targetHistory(categoryIs: CategoryIs) = history(categoryIs)
         

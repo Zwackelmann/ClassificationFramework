@@ -23,7 +23,7 @@ import common.Path
 import common.TrainTuningTestSetSelection
 import model.RawClassification
 import filter.NormalizeVectorFilter
-import classifier.CategoryIsMSC
+import classifier.CategoryIsMscSome
 
 object MergeFormulasAndBagOfWords {
     def id2ANMappings = {
@@ -185,7 +185,7 @@ object MergeFormulasAndBagOfWords {
         
         val firstLevelClasses = 
             List("05", "11", "14", "16", "20", "30", "32", "34", "35", "45", "53", "60", "68")
-            .map(CategoryIsMSC.top(_))
+            .map(CategoryIsMscSome.top(_))
             
         for((l, name) <- learner) {
             println("start " + name)

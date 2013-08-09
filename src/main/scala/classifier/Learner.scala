@@ -86,35 +86,34 @@ trait Learner {
                 val classifierFullFilename = Learner.classifierFullFilename(trainBaseCd, cat, Some(this))
                 if(verbosity >= 2) println("check if " + classifierFullFilename + " exists... ")
                 
-                (FileManager !? ReceiveFile(classifierFullFilename, false)) match {
+                (FileManager !? CreateOrReceiveFile(classifierFullFilename)) match {
                     case AcceptReceiveFile(file) => {
-                        if(file.exists) {
-                            if(verbosity >= 2) println("... yes => load classifier from file")
-                            try {
-                                loadClassifier(classifierFullFilename)
-                            } catch {
-                                case ex: Throwable => {
-                                    println(ex.getMessage())
-                                    val success = file.delete()
-                                    if(verbosity >= 1) println("cannot read classifier file => delete classifier and regenerate")
-                                    classifier(trainBase, cat)
-                                }
+                        if(verbosity >= 2) println("... yes => load classifier from file")
+                        try {
+                            loadClassifier(classifierFullFilename)
+                        } catch {
+                            case ex: Throwable => {
+                                println(ex.getMessage())
+                                val success = file.delete()
+                                if(verbosity >= 1) println("cannot read classifier file => delete classifier and regenerate")
+                                classifier(trainBase, cat)
                             }
-                        } else {
-                            if(verbosity >= 2) println("... no => train classifier")
-                            val c = trainClassifier(mapInstances(trainBase, trainBase, cat), cat)
-                            
-                            if(Learner.serializeClassifiers) {
-                                // TODO dirty... make a saveable trait or something like that for lerners... or think up something else...
-                                try {
-                                    c.save(classifierFullFilename)
-                                    if(verbosity >= 2) println("saved " + c + " in file " + classifierFullFilename)
-                                } catch {
-                                    case e: Throwable => println("WARNING: the serialization of classifier " + classifierFullFilename + " failed")
-                                }
-                            }
-                            c
                         }
+                    }
+                    case AcceptCreateFile(fileHandle) => {
+                        if(verbosity >= 2) println("... no => train classifier")
+                        val c = trainClassifier(mapInstances(trainBase, trainBase, cat), cat)
+                        
+                        if(Learner.serializeClassifiers) {
+                            // TODO dirty... make a saveable trait or something like that for lerners... or think up something else...
+                            try {
+                                c.save(classifierFullFilename)
+                                if(verbosity >= 2) println("saved " + c + " in file " + classifierFullFilename)
+                            } catch {
+                                case e: Throwable => println("WARNING: the serialization of classifier " + classifierFullFilename + " failed")
+                            }
+                        }
+                        c
                     }
                 }
             }
@@ -136,17 +135,16 @@ trait Learner {
                 
                 if(verbosity >= 2) println("check if " + classificationsFullFilename + " exists")
                 
-                (FileManager !? ReceiveFile(classificationsFullFilename, false)) match {
+                (FileManager !? CreateOrReceiveFile(classificationsFullFilename)) match {
                     case AcceptReceiveFile(file) => {
-                        if(file.exists) {
-                            if(verbosity >= 2) println("yes... load classifications from file")
-                            RawClassification.fromFile(classificationsFullFilename)
-                        } else {
-                            if(verbosity >= 2) println("... no => calculate classifications")
-                            val cl = classifier(trainInst, cat).classifications(mapInstances(trainInst, targetInst, cat))
-                            RawClassification.save(cl, classificationsFullFilename)
-                            cl
-                        }
+                        if(verbosity >= 2) println("yes... load classifications from file")
+                        RawClassification.fromFile(classificationsFullFilename)
+                    }
+                    case AcceptCreateFile(fileHandle) => {
+                        if(verbosity >= 2) println("... no => calculate classifications")
+                        val cl = classifier(trainInst, cat).classifications(mapInstances(trainInst, targetInst, cat))
+                        RawClassification.save(cl, classificationsFullFilename)
+                        cl
                     }
                     case Error(msg) => throw new RuntimeException(msg)
                 }

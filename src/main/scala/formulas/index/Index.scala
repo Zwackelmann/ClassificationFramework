@@ -10,6 +10,33 @@ trait Index {
     
     val findNode = nodeMap.apply _
     
+    def reweight(doc: Map[Int, Double], reductionFactor: Double) = {
+        val leafNodesWithWeights = doc.filterKeys(k => findNode(k).isLeaf).map(kv => (findNode(kv._1), kv._2)).toList
+        
+        def pathToParent(node: Index.Node): List[Index.Node] = node.parent match {
+            case Some(parent) => node :: pathToParent(parent)
+            case None => List(node)
+        }
+        
+        leafNodesWithWeights.map(leafNodeWithWeight => (pathToParent(leafNodeWithWeight._1), leafNodeWithWeight._2)).map( pathWithWeight => { 
+            val (path, weight) = pathWithWeight
+            val weights = w(weight, reductionFactor).take(path.size).toList
+            
+            (path zip weights).map(nodeWithWeight => {
+                val (node, weight) = nodeWithWeight
+                node.id -> weight
+            }).toMap
+        }).reduceLeft((a, b) => merge(a, b))
+    }
+    
+    def merge(a: Map[Int, Double], b: Map[Int, Double]): Map[Int, Double] = {
+        (a.keySet -- b.keySet).map(k => k -> a(k)).toMap ++
+        (b.keySet -- a.keySet).map(k => k -> b(k)).toMap ++
+        (a.keySet intersect b.keySet).map(k => k -> (a(k) + b(k)))
+    }
+    
+    def w(x: Double, reductionFactor: Double): Stream[Double] = x #:: w(x * reductionFactor, reductionFactor)
+    
     override def toString = "Index(" + root.toString + ")"
 }
 

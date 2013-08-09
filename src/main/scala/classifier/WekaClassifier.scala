@@ -15,12 +15,11 @@ import FileManager.Protocol._
 
 object WekaClassifier {
     def load(fullFilename: String, parent: Option[Learner] = None) = {
-        val savedObject = (FileManager !? ReceiveFile(fullFilename, true)) match {
+        val savedObject = (FileManager !? ReceiveFile(fullFilename)) match {
             case AcceptReceiveFile(file) => {
                 common.ObjectToFile.readObjectFromFile(file).asInstanceOf[Array[Any]]
             }
             case FileNotExists => throw new RuntimeException(fullFilename + " does not exist")
-            case Error(msg) => throw new RuntimeException(msg)
         }
         
         val wekaClassifier = savedObject(0).asInstanceOf[WekaInternalClassifier]
@@ -91,10 +90,12 @@ class WekaClassifier(val wekaClassifier: WekaInternalClassifier, val trainBaseCD
             None // parent
         )
         
-        (FileManager !? CreateFile(fullFilename, true, (file) => {
-            common.ObjectToFile.writeObjectToFile(objToSave, file)
-        }))
-        
+        (FileManager !? CreateFile(fullFilename)) match {
+            case AcceptCreateFile(fileHandle) => 
+                common.ObjectToFile.writeObjectToFile(objToSave, fileHandle.file)
+                fileHandle.close
+            case RejectCreateFile => throw new RuntimeException("Could not save Weka Classifier")
+        }
     }
     
     override def toString = "WekaClassifier(trainBase: " + trainBaseContentDescription + ", targetClassDef: " + targetClassDef + ")"

@@ -64,5 +64,5 @@ reports_only_main_class__not_normalized/
 text-math-corpus/
 tmpAfterLsi
 trans_predictions
-
+data*
 svm.jar

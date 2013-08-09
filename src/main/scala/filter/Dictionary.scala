@@ -31,14 +31,13 @@ abstract class Dictionary extends Iterable[String] {
             _wordToIndexMap.clear()
             _indexToWordMap.clear()
             
-            _dict ++= dictCount.filter(w => w._2 > minWordCount).map(_._1)
+            _dict ++= dictCount.filter(w => w._2 >= minWordCount).map(_._1)
             for((word, i) <- (_dict.zipWithIndex)) {
                 _wordToIndexMap.put(word, i)
                 _indexToWordMap.put(i, word)
             }
             
             dirtyFlag.isDirty = false
-            _dict
         }
     }
     

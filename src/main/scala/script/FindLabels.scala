@@ -28,8 +28,8 @@ import model.CertaintyToThresholdFunction
 import java.io.BufferedWriter
 import java.io.FileWriter
 import classifier.BalancedTrainSetSelection
-import classifier.CategoryIsMSC
-import classifier.CategorizationHierarchy
+import classifier.CategoryIsMsc
+import classifier.CategoryIsMscSome
 import classifier.CategorizationHierarchy
 
 object FindLabels {
@@ -37,9 +37,9 @@ object FindLabels {
 	    val corpus = ArffJsonInstancesSource("data/arffJson/corpus.json")
 	    val ((trainSet, tuningSet, testSet), c) = TrainTuningTestSetSelection.getSets(100, "min100", corpus, (0.7, 0.3, 0.0))
 	    
-        val allThirdLevelClasses = ApplyFinalClassifier.findConsideredCategories(corpus, 3, 100).map(cStr => CategoryIsMSC(cStr))
-        val allSecondLevelClasses = ApplyFinalClassifier.findConsideredCategories(corpus, 2, 100).map(cStr => CategoryIsMSC.topAndMiddle(cStr.substring(0, 2), cStr.substring(2, 3)))
-        val allFirstLevelClasses = ApplyFinalClassifier.findConsideredCategories(corpus, 1, 100).map(cStr => CategoryIsMSC.top(cStr.substring(0, 2)))
+        val allThirdLevelClasses = ApplyFinalClassifier.findConsideredCategories(corpus, 3, 100).map(cStr => CategoryIsMscSome(cStr))
+        val allSecondLevelClasses = ApplyFinalClassifier.findConsideredCategories(corpus, 2, 100).map(cStr => CategoryIsMscSome.topAndMiddle(cStr.substring(0, 2), cStr.substring(2, 3)))
+        val allFirstLevelClasses = ApplyFinalClassifier.findConsideredCategories(corpus, 1, 100).map(cStr => CategoryIsMscSome.top(cStr.substring(0, 2)))
         
         val minCertaintyThreshold = 0.5
         
@@ -121,9 +121,9 @@ object FindLabels {
 	        catFilenameExt.substring(4, 6)
 	    )
 	    
-	    (if(bottom == "__" && middle == "_") CategoryIsMSC.top(top)
-	        else if(bottom == "__") CategoryIsMSC.topAndMiddle(top, middle)
-	        else CategoryIsMSC.topMiddleAndLeave(top, middle, bottom)
+	    (if(bottom == "__" && middle == "_") CategoryIsMscSome.top(top)
+	        else if(bottom == "__") CategoryIsMscSome.topAndMiddle(top, middle)
+	        else CategoryIsMscSome.topMiddleAndLeave(top, middle, bottom)
 	    ).parent.filenameExtension
 	}
 	
@@ -227,7 +227,7 @@ object FindLabels {
             numAdaBoostIterations
         ), Map("proj" -> "tit", "learner" -> "c45"))
         
-        val svmAbstractLearner = (SvmLearnerNT(
+        val svmAbstractLearner = (SvmLightJniLearner(
             new History() 
                     with AbstractProjection
                     with CategorySelectionFilter.Appendix
@@ -242,7 +242,7 @@ object FindLabels {
             NoTrainSetSelection
         ), Map("proj" -> "abs", "learner" -> "svm"))
         
-        val svmTitleLearner = (SvmLearnerNT(
+        val svmTitleLearner = (SvmLightJniLearner(
             new History() 
                     with TitleProjection
                     with CategorySelectionFilter.Appendix

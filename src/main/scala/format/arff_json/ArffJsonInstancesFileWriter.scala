@@ -6,9 +6,11 @@ import common.FileManager
 import FileManager.Protocol._
 
 class ArffJsonInstancesFileWriter(val header: ArffJsonHeader, val contentDescription: ContentDescription) {
-    val writer = (FileManager !? WriteFile(contentDescription.fullFilename)) match {
-        case AcceptWriteFile(writer) => writer
+    val fileHandle = (FileManager !? CreateFile(contentDescription.fullFilename)) match {
+        case AcceptCreateFile(fileHandle) => fileHandle
     }
+    
+    val writer = new BufferedWriter(new FileWriter(fileHandle.file))
     
     writer.write(header.toJson + "\n")
     
@@ -21,5 +23,6 @@ class ArffJsonInstancesFileWriter(val header: ArffJsonHeader, val contentDescrip
     
     def close {
         writer.close()
+        fileHandle.close
     }
 }

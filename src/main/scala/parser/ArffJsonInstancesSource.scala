@@ -37,7 +37,7 @@ object ArffJsonInstancesSource {
         }
     }
     
-    def apply(cd: ContentDescription) = (FileManager !? ReceiveFile(cd.fullFilename, true)) match {
+    def apply(cd: ContentDescription) = (FileManager !? ReceiveFile(cd.fullFilename)) match {
         case AcceptReceiveFile(file) => {
             val inst = new ArffJsonInstancesSource() with ContentDescribable {
                 def reader = new BufferedReader(new FileReader(file))
@@ -69,16 +69,14 @@ object ArffJsonInstancesSource {
             Some(inst)
         }
         case FileNotExists => None
-        case Error(msg) => throw new RuntimeException(msg)
     }
     
     def apply(base: String, set: ContentDescription.Set, formatHistory: List[(FilterFactory, ContentDescription)]): Option[ArffJsonInstancesSource with ContentDescribable] = apply(ContentDescription(base, set, formatHistory))
     
     def apply(_fullFilename: String, cd: ContentDescription) = new ArffJsonInstancesSource() with ContentDescribable {
-        def reader = (FileManager !? ReceiveFile(_fullFilename, true)) match {
+        def reader = (FileManager !? ReceiveFile(_fullFilename)) match {
             case AcceptReceiveFile(file) => new BufferedReader(new FileReader(file))
             case FileNotExists => throw new RuntimeException(_fullFilename + " does not exist")
-            case Error(msg) => throw new RuntimeException(msg)
         }
     
         val header: ArffJsonHeader = {
@@ -114,10 +112,9 @@ object ArffJsonInstancesSource {
         override def save(fullFilename: String) = error("File cannot be saved")
         override def save() = error("File cannot be saved")
         
-        def reader = (FileManager !? ReceiveFile(_fullFilename, true)) match {
+        def reader = (FileManager !? ReceiveFile(_fullFilename)) match {
             case AcceptReceiveFile(file) => new BufferedReader(new FileReader(file))
             case FileNotExists => throw new RuntimeException(_fullFilename + " does not exist")
-            case Error(msg) => throw new RuntimeException(msg)
         }
     
         val header: ArffJsonHeader = {
@@ -260,6 +257,16 @@ trait ArffJsonInstancesSource extends Iterable[ArffJsonInstance] {
         }
     } 
     
+    override def filterNot(filterFun: ArffJsonInstance => Boolean) = {
+        val thisInst = this
+        
+        new ArffJsonInstancesSource {
+            def iterator = thisInst.iterator.filterNot(filterFun)
+            
+            def header = thisInst.header
+        }
+    } 
+    
     def ++(inst: ArffJsonInstancesSource) = {
         require(this.header.numAttributes == inst.header.numAttributes, "Headers do not match in concatenation")
         
@@ -282,16 +289,17 @@ trait ArffJsonInstancesSource extends Iterable[ArffJsonInstance] {
     }
     
     def save(fullFilename: String) {
-        (FileManager !? WriteFile(fullFilename)) match {
-            case AcceptWriteFile(writer) => {
+        (FileManager !? CreateFile(fullFilename)) match {
+            case AcceptCreateFile(fileHandle) => {
+                val writer = new BufferedWriter(new FileWriter(fileHandle.file))
                 writer.write(header.toJson + "\n")
                 for(inst <- iterator) {
                     writer.write(inst.toJson + "\n")
                 }
                 writer.close()
+                fileHandle.close
             }
-            case RejectWriteFile => 
-            case Error(msg) => throw new RuntimeException(msg)
+            case RejectCreateFile => throw new RuntimeException("Could not save ArffJsonInstancesSource") 
         }
     }
     
@@ -303,9 +311,9 @@ trait ArffJsonInstancesSource extends Iterable[ArffJsonInstance] {
     }
     
     def saved() = this match {
-        case co: ContentDescribable => (FileManager !? FileExists(co.contentDescription.fullFilename)) match {
-            case Exists(b) => b
-            case Error(msg) => throw new RuntimeException(msg)
+        case co: ContentDescribable => (FileManager !? DoesFileExist(co.contentDescription.fullFilename)) match {
+            case FileExists => true
+            case FileNotExists => false
         }
         case _ => throw new RuntimeException("saved() cannot be called if ArffJsonInstancesSource is not ContentDescribable")
     }

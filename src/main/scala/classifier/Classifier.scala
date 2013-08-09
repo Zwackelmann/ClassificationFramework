@@ -91,16 +91,19 @@ abstract class Classifier(val trainBaseContentDescription: Option[ContentDescrip
                 })
             ) yield Learner.classificationsFullFilename(trainCd, targetClassDef, Some(parent), instCd)
             
-            (FileManager !? ReceiveFile(classificationsFullFilename.get, true)) match {
-                case AcceptReceiveFile(file) => {
-                    RawClassification.fromFile(classificationsFullFilename.get)
+            if(classificationsFullFilename.isDefined) {
+                (FileManager !? CreateOrReceiveFile(classificationsFullFilename.get)) match {
+                    case AcceptReceiveFile(file) => {
+                        RawClassification.fromFile(classificationsFullFilename.get)
+                    }
+                    case AcceptCreateFile(fileHandle) => {
+                        val results = calculateClassifications(inst)
+                        RawClassification.save(results, classificationsFullFilename.get)
+                        results.toList
+                    }
                 }
-                case FileNotExists => {
-                    val results = calculateClassifications(inst)
-                    RawClassification.save(results, classificationsFullFilename.get)
-                    results.toList
-                }
-                case Error(msg) => throw new RuntimeException(msg)
+            } else {
+                calculateClassifications(inst).toList
             }
         }
         case None => calculateClassifications(inst).toList
