@@ -3,7 +3,7 @@ package classifier
 import parser.ArffJsonInstancesSource
 import model.RawClassification
 import format.arff_json.ArffJsonInstance
-import format.arff_json.ArffJsonInstances
+import format.arff_json.ArffInstances
 import format.arff_json.NominalArffJsonAttribute
 import weka.classifiers.{Classifier => WekaInternalClassifier}
 import java.io.File

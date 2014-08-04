@@ -5,7 +5,7 @@ import java.io.BufferedWriter
 import java.io.FileWriter
 import java.io.BufferedReader
 import java.io.FileReader
-import format.arff_json.ArffJsonInstances
+import format.arff_json.ArffInstances
 import format.arff_json.ArffJsonInstance
 import java.io.IOException
 import conversion.ArffJson2Joachims
@@ -161,8 +161,7 @@ object JoachimsSVMClassifier {
     }
 }
 
-@serializable
-class JoachimsSVMClassifier(_options: Map[String, List[String]], _modelFilename: String, trainBaseContentDescription: Option[ContentDescription], categoryIs: CategoryIs, parent: Option[Learner]) extends Classifier(trainBaseContentDescription, categoryIs, parent) {
+class JoachimsSVMClassifier(_options: Map[String, List[String]], _modelFilename: String, trainBaseContentDescription: Option[ContentDescription], categoryIs: CategoryIs, parent: Option[Learner]) extends Classifier(trainBaseContentDescription, categoryIs, parent) with Serializable {
     
     def this(options: Map[String, List[String]], trainBase: ArffJsonInstancesSource, categoryIs: CategoryIs, parent: Option[Learner]) {
         this(

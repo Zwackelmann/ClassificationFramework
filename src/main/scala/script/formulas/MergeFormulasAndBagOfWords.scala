@@ -24,6 +24,7 @@ import common.TrainTuningTestSetSelection
 import model.RawClassification
 import filter.NormalizeVectorFilter
 import classifier.CategoryIsMscSome
+import common.Gson
 
 object MergeFormulasAndBagOfWords {
     def id2ANMappings = {
@@ -87,7 +88,7 @@ object MergeFormulasAndBagOfWords {
         val header = corpus.header
         
         val w = new BufferedWriter(new FileWriter(new File("text-corpus-for-math-formulas.json")))
-        w.write(header.toJson + "\n")
+        w.write(Gson.toJson(header) + "\n")
         
         for(doc <- corpus) {
             id2anMap.get(doc.id) match {

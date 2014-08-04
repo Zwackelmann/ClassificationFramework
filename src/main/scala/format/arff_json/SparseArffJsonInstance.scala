@@ -1,8 +1,6 @@
 package format.arff_json
 
 import common.Common.escape
-import com.alibaba.fastjson.parser.DefaultJSONParser
-import com.alibaba.fastjson.JSONObject
 
 trait SparseData extends ArffJsonInstance {
     import ArffJsonInstance.dataToJson
@@ -26,4 +24,5 @@ trait SparseData extends ArffJsonInstance {
     
     def data = dataMap.asInstanceOf[Map[Int, Double]].toList.sortBy(_._1).map(_._2)
     def sparseData = dataMap.asInstanceOf[Map[Int, Double]]
+    def numNonZeroValues = dataMap.size
 }

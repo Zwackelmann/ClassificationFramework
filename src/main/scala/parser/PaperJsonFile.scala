@@ -5,8 +5,8 @@ import model.Paper
 import model.Paper._
 import java.io.FileReader
 import java.io.BufferedReader
-import com.alibaba.fastjson.parser.DefaultJSONParser
-import com.alibaba.fastjson.JSONObject
+import com.google.gson.JsonParser
+import com.google.gson.JsonObject
 
 class PaperJsonFile(val file: File) {
     def this(filename: String) = this(new File(filename))
@@ -18,7 +18,7 @@ class PaperJsonFile(val file: File) {
         def bufferNext() = {
             val line = reader.readLine()
             if(line != null) {
-                buffer = Paper(new DefaultJSONParser(line).parse.asInstanceOf[JSONObject])
+                buffer = Paper(new JsonParser().parse(line).asInstanceOf[JsonObject])
             } else {
                 buffer = null
             }

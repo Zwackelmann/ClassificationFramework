@@ -5,7 +5,9 @@ import weka.core.FastVector
 import scala.collection.mutable.ListBuffer
 import common.Common.jsonToScalaType
 import common.Common.escape
-import com.alibaba.fastjson.JSONObject
+import com.google.gson.JsonObject
+import com.google.gson.JsonPrimitive
+import com.google.gson.JsonElement
 
 object ArffJsonAttribute {
     def apply(attribute: Attribute) = {
@@ -26,18 +28,6 @@ object ArffJsonAttribute {
         } else 
             throw new RuntimeException
     }
-    
-    def jsonToArffJsonAttribute(att: JSONObject) = {
-        att.get("type") match {
-            case "string" => new StringArffJsonAttribute(att.get("name").asInstanceOf[String])
-            case "numeric" => new NumericArffJsonAttribute((att.get("name") match {
-                case null => "null"
-                case x => x
-            }).asInstanceOf[String])
-            case "nominal" => new NominalArffJsonAttribute(att.get("name").asInstanceOf[String], jsonToScalaType(att.get("possible-values")).asInstanceOf[List[String]])
-            case _ => throw new RuntimeException("Invalid attribute type")
-        }
-    }
 }
 
 abstract class ArffJsonAttribute(val name: String) {
@@ -55,8 +45,6 @@ abstract class ArffJsonAttribute(val name: String) {
             case _ => throw new RuntimeException("No valid attribute type")
         }
     }
-    
-    def toJson: String
 }
 
 class NumericArffJsonAttribute(name: String) extends ArffJsonAttribute(name) {

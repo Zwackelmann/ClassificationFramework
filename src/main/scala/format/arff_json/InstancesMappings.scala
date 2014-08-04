@@ -8,7 +8,6 @@ import external.GensimLsiFilter
 import java.io.File
 import filter.Filter
 import filter.ProjectionFilter
-import filter.NominalValueFromDictFilter
 import classifier.CategoryIs
 import filter.feature_scoreing.OddsRatio
 import filter.OddsRatioFilter

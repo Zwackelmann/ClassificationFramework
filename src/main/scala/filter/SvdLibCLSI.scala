@@ -17,6 +17,7 @@ import common.Common
 import common.Common
 import format.arff_json.ArffJsonInstance
 import format.arff_json.ArffJsonHeader
+import format.arff_json.DenseData
 
 object SvdLibCLsiFilter {
     def apply(numDims: Int) = new FilterFactory with Loadable[SvdLibCLsiFilter] {
@@ -26,8 +27,7 @@ object SvdLibCLsiFilter {
         val historyAppendix = "clsi-" + numDims
     }
     
-    @serializable
-    trait Appendix extends History {
+    trait Appendix extends History with Serializable {
         val numLsiDims: Int
         abstract override def apply(categoryIs: CategoryIs) = super.apply(categoryIs) :+ SvdLibCLsiFilter(numLsiDims)
     }
@@ -36,16 +36,19 @@ object SvdLibCLsiFilter {
         val stream = new DataOutputStream(
             new BufferedOutputStream(new FileOutputStream(file))
         )
-        val totalNonZeroValues = source.map(_.asInstanceOf[SparseData].dataMap.size).sum
+        val totalNonZeroValues = source.map(_.numNonZeroValues).sum
         
         stream.writeInt(source.numAttributes)
         stream.writeInt(source.numInstances)
         stream.writeInt(totalNonZeroValues)
         
         for(inst <- source) {
-            val nonZeroValues = inst.asInstanceOf[SparseData].dataMap.asInstanceOf[Map[Int, Double]]
+            val nonZeroValues = inst match {
+                case s: SparseData => s.dataMap.asInstanceOf[Map[Int, Double]]
+                case d: DenseData => ((0 until inst.data.size) zip d.data).filter(_._2 != 0).toMap.asInstanceOf[Map[Int, Double]]
+            }
             
-            stream.writeInt(nonZeroValues.size)
+            stream.writeInt(inst.numNonZeroValues)
             for((index, value) <- nonZeroValues.toList.sortBy(_._1)) {
                 stream.writeInt(index)
                 stream.writeFloat(value.floatValue)
@@ -58,13 +61,14 @@ object SvdLibCLsiFilter {
         val br = new BufferedReader(new FileReader(sigmaMatrixFile))
         
         val dims = br.readLine().toInt
-        val s = Array.ofDim[Double](dims)
-        println("singular values: " + s.toList)
-        for(i <- 0 until dims) {
-            s(i) = -1d / br.readLine().toDouble
+        val sLines = (for(i <- 0 until dims) yield br.readLine().toDouble).toList
+        
+        val s2 = Array.ofDim[Double](dims)
+        for((d, i) <- sLines.zipWithIndex) {
+            s2(i) = -1d / d
         }
         br.close()
-        s
+        s2
     }
     
     def readUAndMultiplyWithS(matrixFile: File, s: Array[Double]) = {
@@ -78,7 +82,8 @@ object SvdLibCLsiFilter {
         for(row <- (0 until rows)) {
             val singularValue = s(row)
             for(col <- (0 until cols)) {
-                m(row)(col) = singularValue * dis.readFloat()
+                val matrixValue = dis.readFloat()
+                m(row)(col) = singularValue * matrixValue
             }
         }
         
@@ -99,6 +104,7 @@ object SvdLibCLsiFilter {
         val vtFile = new File(tmpSvdLibCResultsFilenamePrefix + "-Vt")
         
         val m = readUAndMultiplyWithS(utFile, readInvSingularValues(sFile))
+        val m2 = readUAndMultiplyWithS(vtFile, readInvSingularValues(sFile))
         
         sFile.delete()
         utFile.delete()
@@ -111,13 +117,23 @@ object SvdLibCLsiFilter {
     def projectDoc(inst: ArffJsonInstance, m: Array[Array[Double]]) = {
         val dims = m.length
         
-        val docMap = inst.asInstanceOf[SparseData].dataMap.asInstanceOf[Map[Int, Double]]
-        val dataList = (for(i <- 0 until dims) yield {
-            docMap.map(kv => m(i)(kv._1) * kv._2).sum
-        }).toList
+        
+        val dataList = inst match {
+            case sp: SparseData => {
+                val docMap = sp.dataMap.asInstanceOf[Map[Int, Double]]
+                (for(i <- 0 until dims) yield {
+                    docMap.map(kv => m(i)(kv._1) * kv._2).sum
+                }).toList
+            }
+            case d: DenseData => {
+                val docList = d.data
+                (for(i <- 0 until dims) yield {
+                    ((0 until docList.size) zip docList).map(kv => m(i)(kv._1) * kv._2).sum
+                }).toList
+            }
+        }
         
         val mappedInst = ArffJsonInstance(inst.id, inst.categories, dataList, false)
-        
         mappedInst
     }
     
@@ -147,14 +163,11 @@ object SvdLibCLsiFilter {
 
 
 
-@serializable
-abstract class SvdLibCLsiFilter(source: ArffJsonInstancesSource, numDims: Int) extends GlobalFilter {
+abstract class SvdLibCLsiFilter(source: ArffJsonInstancesSource, numDims: Int) extends GlobalFilter with Serializable {
     val m: Array[Array[Double]] = SvdLibCLsiFilter.determineM(source, numDims)
     
     def applyFilter(source: ArffJsonInstancesSource) = {
         val newHeader = ArffJsonHeader(numDims)
-        
-        println("numNaNs in m: " + m.map(_.count(_.isNaN())).sum)
         
         source.map(
             elemFun = ((inst: ArffJsonInstance) => SvdLibCLsiFilter.projectDoc(inst, m)),

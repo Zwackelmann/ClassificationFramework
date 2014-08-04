@@ -4,6 +4,7 @@ import java.io.BufferedWriter
 import java.io.FileWriter
 import common.FileManager
 import FileManager.Protocol._
+import common.Gson
 
 class ArffJsonInstancesFileWriter(val header: ArffJsonHeader, val contentDescription: ContentDescription) {
     val fileHandle = (FileManager !? CreateFile(contentDescription.fullFilename)) match {
@@ -12,7 +13,7 @@ class ArffJsonInstancesFileWriter(val header: ArffJsonHeader, val contentDescrip
     
     val writer = new BufferedWriter(new FileWriter(fileHandle.file))
     
-    writer.write(header.toJson + "\n")
+    writer.write(Gson.toJson(header) + "\n")
     
     var numInstances = 0
     

@@ -6,6 +6,7 @@ import java.io.File
 import model.Paper
 import format.arff_json._
 import parser.PaperJsonFile
+import common.Gson
 
 abstract class Json2ArffJson(val inFile: File, val outFile: File) {
     def paperToArffJsonInstance(paper: Paper): ArffJsonInstance
@@ -17,7 +18,7 @@ abstract class Json2ArffJson(val inFile: File, val outFile: File) {
         val jsonArffHeader = header
         val out = new BufferedWriter(new FileWriter(outFile))
         
-        out.write(header.toJson + "\n")
+        out.write(Gson.toJson(header) + "\n")
         
         for(paper <- paperfile.elements) {
             out.write(paperToArffJsonInstance(paper).toJson + "\n")

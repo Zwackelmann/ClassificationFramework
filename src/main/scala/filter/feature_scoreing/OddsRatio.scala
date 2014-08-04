@@ -2,8 +2,7 @@ package filter.feature_scoreing
 import parser.ArffJsonInstancesSource
 import classifier.CategoryIs
 
-@serializable
-class OddsRatio(source: ArffJsonInstancesSource, categoryIs: CategoryIs) extends FeatureScoreing(source, categoryIs) {
+class OddsRatio(source: ArffJsonInstancesSource, categoryIs: CategoryIs) extends FeatureScoreing(source, categoryIs) with Serializable {
     import FeatureScoreing._
     
     // override def score(t: Int) = (p(t |- IsCat) * (1 - p(t |- IsNotCat)) / (1 - p(t |- IsCat)) * p(t |- IsNotCat)).approx

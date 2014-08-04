@@ -5,15 +5,15 @@ import common.Common.jsonToScalaType
 import weka.core.Attribute
 import scala.collection.JavaConversions._
 import parser.ArffJsonParser
-import com.alibaba.fastjson.JSONArray
-import com.alibaba.fastjson.JSONObject
-import com.alibaba.fastjson.parser.DefaultJSONParser
-
+import com.google.gson.JsonParser
+import com.google.gson.JsonObject
+import com.google.gson.JsonArray
+import common.Gson
 
 object ArffJsonInstance {
     def main(args: Array[String]) {
         val s = """[["5530038",["70-01","70Hxx","70F10","37N05"]], ["Introduction to Hamiltonian dynamical systems and the $N$-body problem. 2nd ed.", "[For the review of the 1st ed. see (1992; 0743.70006).]", ["New York, NY: Springer"], ["stability"," symmetries"," integrable systems"," perturbation theory"," KAM theory"]]]"""
-        val h = ArffJsonHeader.jsonToArffJsonHeader("""{"relation-name" : "final_format", "attributes" : [{"name" : "title", "type" : "string"}, {"name" : "abstract", "type" : "string"}, {"name" : "journals", "type" : "string"}, {"name" : "terms", "type" : "string"}]}""")
+        val h = Gson.fromJson("""{"relation-name" : "final_format", "attributes" : [{"name" : "title", "type" : "string"}, {"name" : "abstract", "type" : "string"}, {"name" : "journals", "type" : "string"}, {"name" : "terms", "type" : "string"}]}""", classOf[ArffJsonHeader])
         
         val i = ArffJsonInstance(s, h)
         println(i)
@@ -50,9 +50,10 @@ object ArffJsonInstance {
                 private var storedData = dataString
                 
                 lazy val dataMap = {
-                    val obj = jsonToScalaType(new DefaultJSONParser(storedData).parse.asInstanceOf[JSONObject]).asInstanceOf[Map[String, Any]]
+                    // val obj = jsonToScalaType(new JsonParser().parse(storedData).asInstanceOf[JsonObject]).asInstanceOf[Map[String, Any]]
+                    val obj = new JsonParser().parse(storedData).asInstanceOf[JsonObject]
                     storedData = null
-                    obj.map(kv => kv._1.toInt -> kv._2)
+                    obj.entrySet().map(entry => entry.getKey().toInt -> Gson.fromJson(entry.getValue(), classOf[Any])).toMap
                 }
                 
                 override def toJson = {
@@ -73,7 +74,7 @@ object ArffJsonInstance {
                 private var storedData = dataString
                 
                 lazy val dataList = {
-                    val arr = jsonToScalaType(new DefaultJSONParser(storedData).parse.asInstanceOf[JSONArray])
+                    val arr = jsonToScalaType(new JsonParser().parse(storedData).asInstanceOf[JsonArray])
                     storedData = null
                     arr.asInstanceOf[List[Any]]
                 }
@@ -151,6 +152,8 @@ abstract class ArffJsonInstance(val id: String, val categories: List[String]) ex
     def toJson: String
     def numAttributes(): Int
     def dataAt(index: Int): Any
+    def numNonZeroValues: Int
+    
     def project(ids: Set[Int]) = {
         val idsWithIndex = ids.zip(0 until ids.size).toMap
         

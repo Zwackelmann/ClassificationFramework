@@ -2,12 +2,14 @@ package model
 
 import common.DB
 import scala.collection.mutable.ListBuffer
-import com.alibaba.fastjson.JSONObject
-import com.alibaba.fastjson.JSONArray
-import com.alibaba.fastjson.parser.DefaultJSONParser
+import com.google.gson.JsonObject
+import com.google.gson.JsonArray
+import com.google.gson.JsonPrimitive
+import com.google.gson.JsonParser
+import com.google.gson.JsonNull
 
 trait JSONable {
-    def toJson: JSONObject
+    def toJson: JsonObject
 }
 
 object Paper {
@@ -18,23 +20,25 @@ object Paper {
         pw = "0118999"
     )
     
-    def apply(jsonObj: JSONObject) = {
+    def apply(jsonObj: JsonObject) = {
         val an = Pair(jsonObj.get("an1").asInstanceOf[Int], jsonObj.get("an2").asInstanceOf[Int])
         val title = jsonObj.get("title").asInstanceOf[String]
         
-        val authorArray = jsonObj.get("authors").asInstanceOf[JSONArray]
-        val authors = (for(i <- 0 until authorArray.size) yield Author(authorArray.get(i).asInstanceOf[JSONObject])).toList
+        val authorArray = jsonObj.get("authors").asInstanceOf[JsonArray]
+        val authors = (for(i <- 0 until authorArray.size) yield Author(authorArray.get(i).asInstanceOf[JsonObject])).toList
         
-        val sourceArray = jsonObj.get("sources").asInstanceOf[JSONArray]
-        val sources = (for(i <- 0 until sourceArray.size) yield Source(sourceArray.get(i).asInstanceOf[JSONObject])).toList
+        val sourceArray = jsonObj.get("sources").asInstanceOf[JsonArray]
+        val sources = (for(i <- 0 until sourceArray.size) yield Source(sourceArray.get(i).asInstanceOf[JsonObject])).toList
         
-        val mscClassArray = jsonObj.get("mscClasses").asInstanceOf[JSONArray]
+        val mscClassArray = jsonObj.get("mscClasses").asInstanceOf[JsonArray]
         val mscClasses = (for(i <- 0 until mscClassArray.size) yield mscClassArray.get(i).asInstanceOf[String]).toList
         
-        val termArray = jsonObj.get("terms").asInstanceOf[JSONArray]
-        val terms = (for(i <- 0 until termArray.size) yield termArray.get(i) match {
-            case null => "null"
-            case s: String => s
+        val termArray = jsonObj.get("terms").asInstanceOf[JsonArray]
+        val terms = (for(i <- 0 until termArray.size) yield {
+            val term = termArray.get(i)
+            
+            if(term.isJsonNull()) "null"
+            else term.asInstanceOf[JsonPrimitive].getAsString()
         }).toList
         
         val abstractText = jsonObj.get("abstract").asInstanceOf[String]
@@ -50,7 +54,7 @@ object Paper {
         val res = paperStmt.executeQuery()
         
         if(res.next()) {
-            val jsonObj = new DefaultJSONParser(res.getString(3)).parse().asInstanceOf[JSONObject]
+            val jsonObj = new JsonParser().parse(res.getString(3)).asInstanceOf[JsonObject]
             val paper = Paper(jsonObj)
             paper
         } else {
@@ -78,36 +82,36 @@ class Paper (
 	val abstractText: String = null
 ) extends JSONable {
     def toJson = {
-        val paper = new JSONObject()
-        paper.put("an1", an._1)
-        paper.put("an2", an._2)
-        paper.put("title", title)
+        val paper = new JsonObject()
+        paper.addProperty("an1", an._1)
+        paper.addProperty("an2", an._2)
+        paper.addProperty("title", title)
         
-        val authorArray = new JSONArray()
+        val authorArray = new JsonArray()
         for(author <- authors) {
             authorArray.add(author.toJson)
         }
-        paper.put("authors", authorArray)
+        paper.add("authors", authorArray)
         
-        val sourceArray = new JSONArray()
+        val sourceArray = new JsonArray()
         for(source <- sources) {
             sourceArray.add(source.toJson)
         }
-        paper.put("sources", sourceArray)
+        paper.add("sources", sourceArray)
         
-        val mscClassArray = new JSONArray()
+        val mscClassArray = new JsonArray()
         for(mscClass <- mscClasses) {
-            mscClassArray.add(mscClass)
+            mscClassArray.add(new JsonPrimitive(mscClass))
         }
-        paper.put("mscClasses", mscClassArray)
+        paper.add("mscClasses", mscClassArray)
         
-        val termArray = new JSONArray()
+        val termArray = new JsonArray()
         for(term <- terms) {
-            termArray.add(term)
+            termArray.add(new JsonPrimitive(term))
         }
-        paper.put("terms", termArray)
+        paper.add("terms", termArray)
         
-        paper.put("abstract", abstractText)
+        paper.addProperty("abstract", abstractText)
         
         paper
     }

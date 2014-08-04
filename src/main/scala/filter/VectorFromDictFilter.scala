@@ -90,8 +90,7 @@ object VectorFromDictFilter {
         println(filtered.toList.mkString("\n"))
     }
     
-    @serializable
-    trait Appendix extends History {
+    trait Appendix extends History with Serializable {
         val confName: String
         val minOcc: Int = 3
         abstract override def apply(categoryIs: CategoryIs) = super.apply(categoryIs) :+ VectorFromDictFilter(confName, minOcc)
@@ -481,7 +480,7 @@ object VectorFromDictFilter {
     object AdvancedTokenizer {
         @transient lazy val stemmer = new PorterStemmer
         @transient lazy val stopList = new File("util/stoplist.txt").lines.map(_.toLowerCase()).toIndexedSeq
-        @serializable trait Token
+        trait Token extends Serializable
         
         case object WhiteSpace extends Token
         case class SeparatorChar(val c: Char) extends Token
@@ -549,8 +548,7 @@ object VectorFromDictFilter {
             override def toString = tokens.map(_.toString).mkString(" <-> ")
         }
         
-        @serializable
-        object Token {
+        object Token extends Serializable {
             def compress(tokens: List[Token]) = {
                 val tokenCharBuffer = new mutable.ListBuffer[TokenChar]
                 val tokenBuffer = new mutable.ListBuffer[Token]
@@ -812,8 +810,7 @@ object VectorFromDictFilter {
     }
 }
 
-@serializable
-abstract class VectorFromDictFilter extends GlobalFilter {
+abstract class VectorFromDictFilter extends GlobalFilter with Serializable {
     def inst2Words(inst: ArffJsonInstance): Seq[String]
     
     val dict: Dictionary

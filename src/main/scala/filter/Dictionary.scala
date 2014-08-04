@@ -8,8 +8,7 @@ object Dictionary {
     class DirtyFlag(var isDirty: Boolean = true)
 }
 
-@serializable
-abstract class Dictionary extends Iterable[String] {
+abstract class Dictionary extends Iterable[String] with Serializable {
     import Dictionary._
     
     def wordFun(word: String): String = word

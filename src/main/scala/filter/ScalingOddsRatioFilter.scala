@@ -18,8 +18,7 @@ object ScalingOddsRatioFilter {
         val historyAppendix = "sor-" + orThreshold + "-" + numWorst + "-" + shift + "-" + categoryIs.filenameExtension
     }
     
-    @serializable
-    trait Appendix extends History {
+    trait Appendix extends History with Serializable {
         val orThreshold: Double
         val numWorst: Int
         val shift: Double
@@ -37,8 +36,7 @@ object ScalingOddsRatioFilter {
     } + shift
 }
 
-@serializable
-abstract class ScalingOddsRatioFilter(trainBase: ArffJsonInstancesSource, categoryIs: CategoryIs, orThreshold: Double, numWorst: Int, shift: Double) extends GlobalFilter {
+abstract class ScalingOddsRatioFilter(trainBase: ArffJsonInstancesSource, categoryIs: CategoryIs, orThreshold: Double, numWorst: Int, shift: Double) extends GlobalFilter with Serializable {
     import ScalingOddsRatioFilter._
     
     val featureScoring = new OddsRatio(trainBase, categoryIs)

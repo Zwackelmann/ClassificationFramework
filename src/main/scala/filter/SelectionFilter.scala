@@ -6,8 +6,7 @@ import parser.History
 import classifier.CategoryIs
 import parser.ContentDescribable
 
-@serializable
-abstract class SelectionFilter(filterFun: ArffJsonInstance => Boolean) extends GlobalFilter {
+abstract class SelectionFilter(filterFun: ArffJsonInstance => Boolean) extends GlobalFilter with Serializable {
     def applyFilter(source: ArffJsonInstancesSource) = source.filter(filterFun)
 }
 
@@ -19,8 +18,7 @@ object CategorySelectionFilter {
         }
     }
     
-    @serializable
-    trait Appendix extends History {
+    trait Appendix extends History with Serializable {
         val selection: CategoryIs
         abstract override def apply(categoryIs: CategoryIs) = super.apply(categoryIs) :+ CategorySelectionFilter(selection)
     }

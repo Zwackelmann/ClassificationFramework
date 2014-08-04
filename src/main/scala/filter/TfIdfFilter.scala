@@ -16,16 +16,12 @@ object TfIdfFilter {
         val historyAppendix = "tf-idf"
     }
     
-    @serializable
-    trait Appendix extends History {
+    trait Appendix extends History with Serializable {
         abstract override def apply(categoryIs: CategoryIs) = super.apply(categoryIs) :+ TfIdfFilter()
     }
 }
 
-
-
-@serializable
-abstract class TfIdfFilter(source: ArffJsonInstancesSource) extends GlobalFilter {
+abstract class TfIdfFilter(source: ArffJsonInstancesSource) extends GlobalFilter with Serializable {
     val (tf, numDocuments) = {
         val tf = new HashMap[Int, Int] {
             override def default(key: Int) = 0

@@ -14,8 +14,7 @@ object NormalizeVectorFilter {
         }
     }
     
-    @serializable
-    trait Appendix extends History {
+    trait Appendix extends History with Serializable {
         abstract override def apply(categoryIs: CategoryIs) = super.apply(categoryIs) :+ NormalizeVectorFilter()
     }
     

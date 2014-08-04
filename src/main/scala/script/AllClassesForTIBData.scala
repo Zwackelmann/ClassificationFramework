@@ -18,6 +18,7 @@ import java.io.File
 import classifier.BalancedTrainSetSelection
 import classifier.CategoryIsMsc
 import classifier.CategoryIsMscSome
+import common.Gson
 
 object AllClassesForTIBData {
     def main(args: Array[String]) {
@@ -47,7 +48,7 @@ object AllClassesForTIBData {
         }).toMap
         
         def escape(str: String) = str.replaceAll("\\s", " ").replaceAllLiterally("\\", "\\\\").replaceAllLiterally("\"", "\\\"")
-        val header = ArffJsonHeader.jsonToArffJsonHeader("""{"relation-name" : "final_format", "attributes" : [{"name" : "title", "type" : "string"}, {"name" : "abstract", "type" : "string"}, {"name" : "journals", "type" : "string"}, {"name" : "terms", "type" : "string"}]}""")
+        val header = Gson.fromJson("""{"relation-name" : "final_format", "attributes" : [{"name" : "title", "type" : "string"}, {"name" : "abstract", "type" : "string"}, {"name" : "journals", "type" : "string"}, {"name" : "terms", "type" : "string"}]}""", classOf[ArffJsonHeader])
         
         val x = for(doc <- tibCorpus.map(doc => ArffJsonInstance(
             """[["",[]],["%s","%s",[],[]]]""".format(escape(doc.data(0).asInstanceOf[String]), escape(doc.data(1).asInstanceOf[String])),

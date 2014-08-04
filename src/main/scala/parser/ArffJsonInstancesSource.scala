@@ -16,10 +16,10 @@ import classifier.CategoryIs
 import common.FileManager
 import common.FileManager.Protocol._
 import common.Path
-import com.alibaba.fastjson.serializer.JSONSerializer
-import com.alibaba.fastjson.JSONObject
-import com.alibaba.fastjson.JSONException
-import com.alibaba.fastjson.parser.DefaultJSONParser
+import com.google.gson.JsonParser
+import com.google.gson.JsonObject
+import com.google.gson.JsonParseException
+import common.Gson
 
 object ArffJsonInstancesSource {
     def apply(_source: Iterable[ArffJsonInstance], _header: ArffJsonHeader, _contentDescription: ContentDescription): ArffJsonInstancesSource with ContentDescribable = {
@@ -46,12 +46,9 @@ object ArffJsonInstancesSource {
                     val r = reader
                     
                     val h = try {
-                        new DefaultJSONParser(r.readLine).parse match {
-                            case o: JSONObject => ArffJsonHeader.jsonToArffJsonHeader(o)
-                            case _ => throw new RuntimeException("File: " + file + ": The first line in file cannot be interpeted as a JSON object")
-                        }
+                        Gson.fromJson(r.readLine, classOf[ArffJsonHeader])
                     } catch {
-                        case jsonEx: JSONException => throw new RuntimeException("The first line in file does not contain a valid JSON string")
+                        case jsonEx: JsonParseException => throw new RuntimeException("The first line in file does not contain a valid JSON string")
                         case e: Throwable => throw e
                     }
                     r.close()
@@ -83,12 +80,9 @@ object ArffJsonInstancesSource {
             val r = reader
             
             val h = try {
-                new DefaultJSONParser(r.readLine()).parse match {
-                    case o: JSONObject => ArffJsonHeader.jsonToArffJsonHeader(o)
-                    case _ => throw new RuntimeException("The first line in file cannot be interpeted as a JSON object")
-                }
+                Gson.fromJson(r.readLine(), classOf[ArffJsonHeader])
             } catch {
-                case jsonEx: JSONException => throw new RuntimeException("The first line in file does not contain a valid JSON string")
+                case jsonEx: JsonParseException => throw new RuntimeException("The first line in file does not contain a valid JSON string")
                 case e: Throwable => throw e
             }
             r.close()
@@ -121,12 +115,9 @@ object ArffJsonInstancesSource {
             val r = reader
             
             val h = try {
-                new DefaultJSONParser(r.readLine).parse match {
-                    case o: JSONObject => ArffJsonHeader.jsonToArffJsonHeader(o)
-                    case _ => throw new RuntimeException("The first line in file cannot be interpeted as a JSON object")
-                }
+                Gson.fromJson(r.readLine(), classOf[ArffJsonHeader])
             } catch {
-                case jsonEx: JSONException => 
+                case jsonEx: JsonParseException => 
                     throw jsonEx
                 case e: Throwable => throw e
             }
@@ -161,6 +152,21 @@ object ArffJsonInstancesSource {
             }
         }
         map.mapValues(m => Point(m._1.mapValues(v => v / m._2), inst.numAttributes)).toMap
+    }
+    
+    def save(source: ArffJsonInstancesSource, filename: String) {
+        (FileManager !? CreateFile(filename)) match {
+            case AcceptCreateFile(fileHandle) => {
+                val writer = new BufferedWriter(new FileWriter(fileHandle.file))
+                writer.write(Gson.toJson(source.header, classOf[ArffJsonHeader]) + "\n")
+                for(inst <- source.iterator) {
+                    writer.write(inst.toJson + "\n")
+                }
+                writer.close()
+                fileHandle.close
+            }
+            case RejectCreateFile => throw new RuntimeException("Could not save ArffJsonInstancesSource") 
+        }
     }
 }
 
@@ -283,6 +289,15 @@ trait ArffJsonInstancesSource extends Iterable[ArffJsonInstance] {
         }
     }
     
+    override def take(num: Int) = {
+        val thisInst = this
+        
+        new ArffJsonInstancesSource {
+            def iterator = thisInst.iterator.take(num)
+            def header = thisInst.header
+        }
+    }
+    
     def fullFilename: String = this match {
         case co: ContentDescribable => co.contentDescription.fullFilename
         case _ => throw new RuntimeException("file() cannot be called if ArffJsonInstancesSource is not ContentDescribable")
@@ -292,7 +307,7 @@ trait ArffJsonInstancesSource extends Iterable[ArffJsonInstance] {
         (FileManager !? CreateFile(fullFilename)) match {
             case AcceptCreateFile(fileHandle) => {
                 val writer = new BufferedWriter(new FileWriter(fileHandle.file))
-                writer.write(header.toJson + "\n")
+                writer.write(Gson.toJson(header, classOf[ArffJsonHeader]) + "\n")
                 for(inst <- iterator) {
                     writer.write(inst.toJson + "\n")
                 }

@@ -1,9 +1,9 @@
 package model
 
-import com.alibaba.fastjson.JSONObject
+import com.google.gson.JsonObject
 
 object Source {
-    def apply(jsonObj: JSONObject) = {
+    def apply(jsonObj: JsonObject) = {
         jsonObj.get("type").asInstanceOf[String] match {
             case "DetailledSource" => new DetailledSource(
                 jsonObj.get("journal").asInstanceOf[String],
@@ -25,15 +25,15 @@ abstract class Source extends JSONable
 
 class DetailledSource(val journal: String, val volume: Int, val nrFrom: Int, val nrTo: Int, val pageFrom: Int, val pageTo: Int, val year: Int) extends Source {
     def toJson = {
-        val source = new JSONObject()
-        source.put("type", "DetailledSource")
-        source.put("journal", journal)
-        source.put("volume", volume)
-        source.put("nrFrom", nrFrom)
-        source.put("nrTo", nrTo)
-        source.put("pageFrom", pageFrom)
-        source.put("pageTo", pageTo)
-        source.put("year", year)
+        val source = new JsonObject()
+        source.addProperty("type", "DetailledSource")
+        source.addProperty("journal", journal)
+        source.addProperty("volume", volume)
+        source.addProperty("nrFrom", nrFrom)
+        source.addProperty("nrTo", nrTo)
+        source.addProperty("pageFrom", pageFrom)
+        source.addProperty("pageTo", pageTo)
+        source.addProperty("year", year)
         
         source
     }
@@ -45,9 +45,9 @@ class DetailledSource(val journal: String, val volume: Int, val nrFrom: Int, val
 }
 case class OtherSource(val src: String) extends Source {
     def toJson = {
-        val source = new JSONObject()
-        source.put("type", "OtherSource")
-        source.put("src", src)
+        val source = new JsonObject()
+        source.addProperty("type", "OtherSource")
+        source.addProperty("src", src)
         source
     }
 }

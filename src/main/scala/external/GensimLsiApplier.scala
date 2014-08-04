@@ -31,8 +31,7 @@ object GensimLsiFilter {
         val historyAppendix = "lsi-" + numDims
     }
     
-    @serializable
-    trait Appendix extends History {
+    trait Appendix extends History with Serializable {
         val numLsiDims: Int
         abstract override def apply(categoryIs: CategoryIs) = super.apply(categoryIs) :+ GensimLsiFilter(numLsiDims)
     }
@@ -63,8 +62,7 @@ object GensimLsiFilter {
     }
 }
 
-@serializable
-abstract class GensimLsiFilter(val numTopics: Int) extends GlobalFilter {
+abstract class GensimLsiFilter(val numTopics: Int) extends GlobalFilter with Serializable {
     import common.Common.verbosity
     
     lazy val modelFilename = common.Common.randomStream().map(d => (d*9).toInt).take(32).mkString

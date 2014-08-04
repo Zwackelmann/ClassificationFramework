@@ -290,5 +290,13 @@ object FileManager extends Actor {
         }
     }
     
+    def withFileManager(f: => Unit) {
+        try {
+            f
+        } finally {
+            FileManager.quit()
+        }
+    }
+    
     start
 }

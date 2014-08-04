@@ -12,6 +12,7 @@ import java.io.FileWriter
 import parser.ContentDescribable
 import common.FileManager
 import FileManager.Protocol._
+import common.Gson
 
 object TrainSetSelection {
     import common.Common.verbosity
@@ -141,7 +142,7 @@ object TrainSetSelection {
                         
                         val writer = new BufferedWriter(new FileWriter(fileHandle.file))
                         
-                        writer.write(source.header.toJson + "\n")
+                        writer.write(Gson.toJson(source.header) + "\n")
                         for(inst <- source.iterator.filter(preFilter).filter(inst => categoryIs.matchesForTraining(inst.categories).isDefined)) {
                             val isCat = categoryIs.matchesForTraining(inst.categories)
                             if(isCat.isDefined && isCat.get && math.random < (targetSize.toDouble/numTargetInst)) {
@@ -175,7 +176,7 @@ object TrainSetSelection {
                         
                         val writer = new BufferedWriter(new FileWriter(fileHandle.file))
                         
-                        writer.write(source.header.toJson + "\n")
+                        writer.write(Gson.toJson(source.header) + "\n")
                         for(inst <- instancesIterator) {
                             writer.write(inst.toJson + "\n")
                         }
@@ -274,7 +275,7 @@ object TrainSetSelection {
                         
                         val writer = new BufferedWriter(new FileWriter(fileHandle.file))
                         
-                        writer.write(source.header.toJson + "\n")
+                        writer.write(Gson.toJson(source.header) + "\n")
                         for(inst <- instancesIterator) {
                             writer.write(inst.toJson + "\n")
                         }

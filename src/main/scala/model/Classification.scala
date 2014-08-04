@@ -17,8 +17,9 @@ import parser.ArffJsonInstancesSource
 import common.Path
 import common.FileManager
 import FileManager.Protocol._
-import com.alibaba.fastjson.parser.DefaultJSONParser
-import com.alibaba.fastjson.JSONArray
+import com.google.gson.JsonParser
+import com.google.gson.JsonArray
+import com.google.gson.JsonPrimitive
 
 object RawClassification {
     class Category(val name: String) {
@@ -30,17 +31,24 @@ object RawClassification {
     val FALSE_NEGATIVE = new Category("False Negative")
     
     def apply(str: String) = {
-        val a = new DefaultJSONParser(str).parse().asInstanceOf[JSONArray]
+        val a = new JsonParser().parse(str).asInstanceOf[JsonArray]
         
-        val classification: Double = a.get(1) match {
-            case bigDecimal: java.math.BigDecimal => bigDecimal.doubleValue()
-            case d: java.lang.Double => d
-            case i: java.lang.Integer => new java.lang.Double(i.toString)
+        val classification: Double = {
+            val jsonPrimitive = a.get(1).asInstanceOf[JsonPrimitive]
+            if(jsonPrimitive.isNumber()) {
+                jsonPrimitive.getAsDouble()
+            } else {
+                throw new RuntimeException("Value at position 1 in string \"" + a + "\" cannot be interpreted as Double")
+            }
         }
-        val trueClass: Double = a.get(2) match {
-            case bd: java.math.BigDecimal => bd.doubleValue()
-            case d: java.lang.Double => d
-            case i: java.lang.Integer => new java.lang.Double(i.toString)
+        
+        val trueClass: Double = {
+            val jsonPrimitive = a.get(2).asInstanceOf[JsonPrimitive]
+            if(jsonPrimitive.isNumber()) {
+                jsonPrimitive.getAsDouble()
+            } else {
+                throw new RuntimeException("Value at position 2 in string \"" + a + "\" cannot be interpreted as Double")
+            }
         }
         
         new RawClassification(a.get(0).asInstanceOf[String], classification, trueClass)
@@ -459,7 +467,7 @@ object CertaintyToThresholdFunction {
                 
                 new CertaintyToThresholdFunction(
                     lines.map(line => {
-                        val jarr = new DefaultJSONParser(line).parse().asInstanceOf[JSONArray]
+                        val jarr = new JsonParser().parse(line).asInstanceOf[JsonArray]
                         def toDouble(a: Object) = a match {
                             case d: java.lang.Double => d.toDouble
                             case bd: java.math.BigDecimal => bd.doubleValue

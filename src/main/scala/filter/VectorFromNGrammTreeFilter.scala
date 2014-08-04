@@ -30,8 +30,7 @@ object VectorFromNGramTreeFilter {
     
     def apply(confName: String, nGrammFile: File): FilterFactory = apply(confName, nGrammFile.lines.map(line => line.split("\\s+").toList))
     
-    @serializable
-    abstract class Conf1(nGrams: Iterable[List[String]]) extends VectorFromNGramTreeFilter(nGrams) {
+    abstract class Conf1(nGrams: Iterable[List[String]]) extends VectorFromNGramTreeFilter(nGrams) with Serializable {
         val wordTransformFunction = (word: String) => stemmer.stem(word
             .filter(c => c.isDigit || c.isLetter)
             .toLowerCase()
@@ -48,8 +47,7 @@ object VectorFromNGramTreeFilter {
     }
 }
 
-@serializable
-abstract class VectorFromNGramTreeFilter(nGrams: Iterable[List[String]]) extends GlobalFilter {
+abstract class VectorFromNGramTreeFilter(nGrams: Iterable[List[String]]) extends GlobalFilter with Serializable {
     @transient lazy val stemmer = new PorterStemmer()
     val wordTransformFunction: (String => String)
     

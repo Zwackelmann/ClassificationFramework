@@ -1,6 +1,6 @@
 package model
 
-import com.alibaba.fastjson.JSONObject
+import com.google.gson.JsonObject
 
 object Author {
     val validChars = List(
@@ -11,7 +11,7 @@ object Author {
         name.toLowerCase.filter(c => validChars.contains(c))
     }
     
-    def apply(jsonObj: JSONObject) = {
+    def apply(jsonObj: JsonObject) = {
         jsonObj.get("type").asInstanceOf[String] match {
             case "HumanAuthor" => new HumanAuthor(
                 jsonObj.get("firstname").asInstanceOf[String],
@@ -33,10 +33,10 @@ case class HumanAuthor(val firstname: String, val lastname: String) extends Auth
     def unifiedName = unifyName(lastname) + ", " + unifyName(firstname)
     
     def toJson = {
-        val author = new JSONObject()
-        author.put("type", "HumanAuthor")
-        author.put("firstname", firstname)
-        author.put("lastname", lastname)
+        val author = new JsonObject()
+        author.addProperty("type", "HumanAuthor")
+        author.addProperty("firstname", firstname)
+        author.addProperty("lastname", lastname)
         
         author
     }
@@ -46,9 +46,9 @@ case class OtherAuthor(val name: String) extends Author {
     def unifiedName = unifyName(name)
     
     def toJson = {
-        val author = new JSONObject()
-        author.put("type", "OtherAuthor")
-        author.put("name", "name")
+        val author = new JsonObject()
+        author.addProperty("type", "OtherAuthor")
+        author.addProperty("name", "name")
         
         author
     }

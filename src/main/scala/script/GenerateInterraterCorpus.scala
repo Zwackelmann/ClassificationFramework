@@ -17,8 +17,6 @@ import java.io.FileWriter
 import java.io.BufferedWriter
 import java.io.File
 import scala.io.Source
-import com.alibaba.fastjson.parser.DefaultJSONParser
-import com.alibaba.fastjson.JSONObject
 import scala.collection.mutable
 
 object GenerateInterraterCorpus {

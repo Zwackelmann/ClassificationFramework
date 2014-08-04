@@ -14,8 +14,7 @@ object ScaleVectorFilter {
         }
     }
     
-    @serializable
-    trait Appendix extends History {
+    trait Appendix extends History with Serializable {
         val scaleFactor: Double
         abstract override def apply(categoryIs: CategoryIs) = super.apply(categoryIs) :+ ScaleVectorFilter(scaleFactor)
     }

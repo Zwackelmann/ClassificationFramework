@@ -66,3 +66,13 @@ tmpAfterLsi
 trans_predictions
 data*
 svm.jar
+.history
+annotated-documents.json
+jaccard_matrix
+jaccard_matrix2
+libSVMLight.so
+modules/
+old-lib/
+project.subl
+project.sublime-workspace
+svd

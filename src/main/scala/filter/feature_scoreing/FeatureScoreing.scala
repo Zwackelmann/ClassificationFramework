@@ -47,8 +47,7 @@ object FeatureScoreing {
     }
 }
 
-@serializable
-abstract class FeatureScoreing(inst: ArffJsonInstancesSource, categoryIs: CategoryIs) {
+abstract class FeatureScoreing(inst: ArffJsonInstancesSource, categoryIs: CategoryIs) extends Serializable {
     import FeatureScoreing._
     
     def score(t: Int): Double

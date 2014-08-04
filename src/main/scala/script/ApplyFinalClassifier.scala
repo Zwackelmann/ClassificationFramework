@@ -77,7 +77,7 @@ object ApplyFinalClassifier {
         }
         if(arguments.size != 3) {
             println("Erstes Argument: Corpus dateiname data/arffJson\nZweites Argument name des Korpus\nDrittes Argument layer fuer die Klassifizierung")
-            exit(1)
+            System.exit(1)
         } 
         try {
             common.Path.rootFolder = "data_filter_irrelevant_papers"
@@ -294,7 +294,7 @@ object CombineClassifiers {
         
         def comb(i: Int) = {
             val x = common.Common.sequenceWithountRoundingErrors(0.0, 1.0, 0.1)
-            List.make(i, x.map(a => List(a))).reduceLeft((a, b) => cross(a, b)).filter(x => {val sum = x.reduceLeft(_ + _); sum > 0.99 && sum < 1.01})
+            List.fill(i)(x.map(a => List(a))).reduceLeft((a, b) => cross(a, b)).filter(x => {val sum = x.reduceLeft(_ + _); sum > 0.99 && sum < 1.01})
         }
         
         val (bestCoofficients, bestFmeasure) = (for(coofficients <- comb(tuningSetResults.size)) yield {
@@ -339,14 +339,14 @@ class EvaluationDataAccumulator() {
             val totalTruePositivesForEachPercent = reducedData.map(_.forMicro).toList.transpose.map(list => list.map(_._1).reduceLeft(_ + _))
             val totalFalsePositivesForEachPercent = reducedData.map(_.forMicro).toList.transpose.map(list => list.map(_._2).reduceLeft(_ + _))
             
-            val micro = (totalTruePositivesForEachPercent zip totalFalsePositivesForEachPercent).map(p => p._1.toDouble / (p._1 + p._2)).map(d => d.toString.replace('.', ','))
+            val microF = (totalTruePositivesForEachPercent zip totalFalsePositivesForEachPercent).map(p => p._1.toDouble / (p._1 + p._2)).map(d => d.toString.replace('.', ','))
             
-            val macro = (reducedData.map(_.forMacro).toList.transpose.map(list => {
+            val macroF = (reducedData.map(_.forMacro).toList.transpose.map(list => {
 	            val l = list.map(d => if(d.isNaN()) 0.0 else d)
 	            val sum = l.sum
 	            l.sum / l.size
 	        })).map(d => d.toString.replace('.', ','))
-	        key -> (micro, macro)
+	        key -> (microF, macroF)
         }).toMap
         
         val microResults = results.toList.map(kv => kv._1 -> kv._2._1)
@@ -365,11 +365,11 @@ class EvaluationDataAccumulator() {
     }
 }
 
-@serializable trait TitleProjection extends ProjectionFilter.Appendix { val projection = (0, "tit") }
-@serializable trait AbstractProjection extends ProjectionFilter.Appendix { val projection = (1, "abs") }
-@serializable trait AbstractTitleConcat extends ConcatFilter.Appendix { val concat = (List(0, 1), "at")}
-@serializable trait JournalProjection extends ProjectionFilter.Appendix { val projection = (2, "jour") }
-@serializable trait TermsProjection extends ProjectionFilter.Appendix { val projection = (3, "ter") }
+trait TitleProjection extends ProjectionFilter.Appendix with Serializable { val projection = (0, "tit") }
+trait AbstractProjection extends ProjectionFilter.Appendix with Serializable { val projection = (1, "abs") }
+trait AbstractTitleConcat extends ConcatFilter.Appendix with Serializable { val concat = (List(0, 1), "at")}
+trait JournalProjection extends ProjectionFilter.Appendix with Serializable { val projection = (2, "jour") }
+trait TermsProjection extends ProjectionFilter.Appendix with Serializable { val projection = (3, "ter") }
 
 
 object SvmLightJniLearner {

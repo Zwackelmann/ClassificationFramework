@@ -89,8 +89,7 @@ object SimpleTextToFeatureVectorFilter {
         val historyAppendix = "svec-" + minOcc + (if(applyStemming) 1 else 0) + (if(ignoreFormulae) 1 else 0) + (if(ignoreReferences) 1 else 0)
     }
     
-    @serializable
-    trait Appendix extends History {
+    trait Appendix extends History with Serializable {
         val minOcc: Int = 3
         val applyStemming: Boolean = true
         val ignoreFormulae: Boolean = true
@@ -100,8 +99,7 @@ object SimpleTextToFeatureVectorFilter {
     }
 }
 
-@serializable
-abstract class SimpleTextToFeatureVectorFilter(val minOcc: Int, applyStemming: Boolean, ignoreFormulae: Boolean, ignoreReferences: Boolean) extends TextToFeatureVectorFilter {
+abstract class SimpleTextToFeatureVectorFilter(val minOcc: Int, applyStemming: Boolean, ignoreFormulae: Boolean, ignoreReferences: Boolean) extends TextToFeatureVectorFilter with Serializable {
     @transient lazy val stemmer = new PorterStemmer
     
     def inst2Words(inst: ArffJsonInstance): Iterator[String] = {

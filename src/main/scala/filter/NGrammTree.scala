@@ -62,13 +62,11 @@ class NGrammNodeBuffer(val nodeLabel: Option[List[String]]) {
     def toNGrammNode: NGramNode = new NGramNode(children.toMap.map(c => c._1 -> c._2.toNGrammNode), id)
 }
 
-@serializable
-class NGramTree(root: NGramNode, val nGramSet: Set[List[String]], val sortedNGramList: List[List[String]]) {
+class NGramTree(root: NGramNode, val nGramSet: Set[List[String]], val sortedNGramList: List[List[String]]) extends Serializable {
     def apply(nGram: Seq[String]) = root(nGram)
 }
 
-@serializable
-class NGramNode(val children: Map[String, NGramNode], val id: Option[Int]) {
+class NGramNode(val children: Map[String, NGramNode], val id: Option[Int]) extends Serializable {
     def apply(nGram: Seq[String]): Option[Int] = {
         if(nGram.isEmpty || id.isDefined) id
         else children.get(nGram.head) match {

@@ -6,6 +6,14 @@ import format.arff_json.ArffJsonInstance
 import classifier.CategoryIs
 
 object ConcatFilter {
+    def apply(ids: List[Int]) = new FilterFactory {
+        val _ids = ids
+        val historyAppendix = "uni"
+        
+        @transient lazy val f = new ConcatFilter(_ids)
+        def apply(trainBase: ArffJsonInstancesSource) = f
+    }
+    
     def apply(ids: List[Int], concatDesc: String) = new FilterFactory {
         val _ids = ids
         val historyAppendix = "uni-" + concatDesc
@@ -14,15 +22,13 @@ object ConcatFilter {
         def apply(trainBase: ArffJsonInstancesSource) = f
     }
     
-    @serializable
-    trait Appendix extends History {
+    trait Appendix extends History with Serializable {
         val concat: Pair[List[Int], String]
         abstract override def apply(categoryIs: CategoryIs) = super.apply(categoryIs) :+ ConcatFilter(concat._1, concat._2)
     }
 }
 
-@serializable
-class ConcatFilter(ids: List[Int]) extends GlobalFilter {
+class ConcatFilter(ids: List[Int]) extends GlobalFilter with Serializable {
     def applyFilter(source: ArffJsonInstancesSource) = {
         source.map(
             (

@@ -18,15 +18,13 @@ object MostFrequentTermsFilter {
         val historyAppendix = "mf-" + numFeatures
     }
     
-    @serializable
-    trait Appendix extends History {
+    trait Appendix extends History with Serializable {
         val numMostFrequentFeatures: Int
         abstract override def apply(categoryIs: CategoryIs) = super.apply(categoryIs) :+ MostFrequentTermsFilter(numMostFrequentFeatures)
     }
 }
 
-@serializable
-abstract class MostFrequentTermsFilter(source: ArffJsonInstancesSource, val numFeatures: Int) extends GlobalFilter {
+abstract class MostFrequentTermsFilter(source: ArffJsonInstancesSource, val numFeatures: Int) extends GlobalFilter with Serializable {
     val targetIds = {
         val tf = new HashMap[Int, Int] {
             override def default(key: Int) = 0

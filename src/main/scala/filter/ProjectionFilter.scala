@@ -14,15 +14,13 @@ object ProjectionFilter {
         def apply(trainBase: ArffJsonInstancesSource) = f
     }
     
-    @serializable
-    trait Appendix extends History {
+    trait Appendix extends History with Serializable {
         val projection: Pair[Int, String]
         abstract override def apply(categoryIs: CategoryIs) = super.apply(categoryIs) :+ ProjectionFilter(Set(projection._1), projection._2)
     }
 }
 
-@serializable
-class ProjectionFilter(ids: Set[Int]) extends GlobalFilter {
+class ProjectionFilter(ids: Set[Int]) extends GlobalFilter with Serializable {
     def applyFilter(source: ArffJsonInstancesSource) = {
         source.map(
             ((inst: ArffJsonInstance) => inst.project(ids)),

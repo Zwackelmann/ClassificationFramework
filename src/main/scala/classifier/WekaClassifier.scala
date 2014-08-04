@@ -3,7 +3,7 @@ package classifier
 import parser.ArffJsonInstancesSource
 import model.RawClassification
 import format.arff_json.ArffJsonInstance
-import format.arff_json.ArffJsonInstances
+import format.arff_json.ArffInstances
 import format.arff_json.NominalArffJsonAttribute
 import weka.classifiers.{Classifier => WekaInternalClassifier}
 import java.io.File
@@ -40,7 +40,7 @@ object WekaClassifier {
                 val isTarget = categoryIs.matchesForTraining(inst.categories) 
                 if(isTarget.isDefined && isTarget.get) "yes" else if(isTarget.isDefined) "no" else "?"
             }
-            val arffJsonInst = new ArffJsonInstances(mappedInst, List(Pair(new NominalArffJsonAttribute("target_class", List("no", "yes", "?")), classAttribute)))
+            val arffJsonInst = new ArffInstances(mappedInst, List(Pair(new NominalArffJsonAttribute("target_class", List("no", "yes", "?")), classAttribute)))
             arffJsonInst.instances
         }
         
@@ -60,7 +60,7 @@ class WekaClassifier(val wekaClassifier: WekaInternalClassifier, val trainBaseCD
                 val isTarget = categoryIs.matchesForTesting(inst.categories) 
                 if(isTarget.isDefined && isTarget.get) "yes" else if(isTarget.isDefined) "no" else "?"
             }
-            val arffJsonInstances = new ArffJsonInstances(mappedInst, List(Pair(new NominalArffJsonAttribute("target_class", List("no", "yes")), classAttribute)))
+            val arffJsonInstances = new ArffInstances(mappedInst, List(Pair(new NominalArffJsonAttribute("target_class", List("no", "yes")), classAttribute)))
             arffJsonInstances.instances.setClassIndex(0)
             arffJsonInstances
         }

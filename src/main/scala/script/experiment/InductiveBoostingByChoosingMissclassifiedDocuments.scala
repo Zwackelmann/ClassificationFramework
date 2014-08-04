@@ -9,7 +9,6 @@ import filter.SimpleTextToFeatureVectorFilter
 import filter.TfIdfFilter
 import filter.NormalizeVectorFilter
 import classifier.BalancedTrainSetSelection
-import classifier.CategoryIsMSC
 import classifier.Classifier
 import script.SvmLightJniLearner
 import script.AbstractTitleConcat

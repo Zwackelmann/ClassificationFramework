@@ -2,16 +2,10 @@ name := "Classification Framework"
 
 version := "1.0"
 
-scalaVersion := "2.10.0"
+scalaVersion := "2.11.0"
 
-// fullRunTask(classifyRun, Test, "script.ApplyFinalClassifier")
+fork := true
 
-// fullRunTask(testingRun, Test, "script.Test6")
+javaOptions += "-Djava.library.path=."
 
-// javaOptions in classifyRun += "-Xmx2000m"
-
-// javaOptions in testingRun += "-Xmx2000m"
-
-// fork in classifyRun := true
-
-// fork in testingRun := true
+scalacOptions ++= Opts.compile.encoding("Cp1252")

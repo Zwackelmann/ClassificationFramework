@@ -1,8 +1,6 @@
 package format.arff_json
 
 import common.Common.escape
-import com.alibaba.fastjson.parser.DefaultJSONParser
-import com.alibaba.fastjson.JSONArray
 
 trait DenseData extends ArffJsonInstance {
     def dataList: List[Any]
@@ -18,4 +16,5 @@ trait DenseData extends ArffJsonInstance {
     override def toString = toJson
     def data = dataList.asInstanceOf[List[Double]]
     def sparseData = (0 until dataList.length).zip(dataList.asInstanceOf[List[Double]]).filter(_._2 != 0).toMap
+    def numNonZeroValues = dataList.count(_ != 0)
 }

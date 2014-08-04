@@ -119,8 +119,8 @@ object CategoryIs {
     }
 }
 
-@serializable
-trait CategoryIs {
+
+trait CategoryIs extends Serializable {
     def filenameExtension(): String
     def matches(classes: List[String]): Option[Boolean]
     

@@ -16,16 +16,14 @@ object OddsRatioFilter {
         val historyAppendix = "or-" + orThreshold + "-" + numWorst + "-" + categoryIs.filenameExtension
     }
     
-    @serializable
-    trait Appendix extends History {
+    trait Appendix extends History with Serializable {
         val orThreshold: Double
         val numWorst: Int
         abstract override def apply(categoryIs: CategoryIs) = super.apply(categoryIs) :+ OddsRatioFilter(categoryIs, orThreshold, numWorst)
     }
 }
 
-@serializable
-abstract class OddsRatioFilter(trainBase: ArffJsonInstancesSource, categoryIs: CategoryIs, orThreshold: Double, numWorst: Int) extends GlobalFilter {
+abstract class OddsRatioFilter(trainBase: ArffJsonInstancesSource, categoryIs: CategoryIs, orThreshold: Double, numWorst: Int) extends GlobalFilter with Serializable {
     val featureScoring = new OddsRatio(trainBase, categoryIs)
     
     def applyFilter(inst: ArffJsonInstancesSource) = {

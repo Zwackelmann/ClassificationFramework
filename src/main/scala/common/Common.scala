@@ -5,8 +5,9 @@ import java.io.BufferedReader
 import java.io.File
 import java.io.FileReader
 import java.security.MessageDigest
-import com.alibaba.fastjson.JSONArray
-import com.alibaba.fastjson.JSONObject
+import com.google.gson.JsonArray
+import com.google.gson.JsonObject
+import com.google.gson.JsonPrimitive
 
 /**
  * A collection of some commonly used functions
@@ -41,26 +42,21 @@ object Common {
     
     /**
      * Converts an arbitrary JSON Object to the respective Scala-Version. <br>
-     * <ul>
-     *   <li>JSON Object becomes scala.collection.immutable.Map
-     *   <li>JSON Array becomes scala.collection.immutable.List
-     *   <li>JSON String becomes java.lang.String
-     *   <li>JSON Double becomes scala.Double
-     *   <li>JSON Int becomes scala.Int
-     * </ul>
      */
     def jsonToScalaType(a: Any): Any = {
         a match {
-            case arr: JSONArray => (for(i <- 0 until arr.size) yield jsonToScalaType(arr.get(i))).toList
-            case obj: JSONObject => {
-                val keyIter = obj.keySet().iterator().asInstanceOf[java.util.Iterator[String]]
-                
+            case arr: JsonArray => (for(i <- 0 until arr.size) yield jsonToScalaType(arr.get(i))).toList
+            case obj: JsonObject => {
+                val keyIter = obj.entrySet().iterator().map(_.getKey).asInstanceOf[java.util.Iterator[String]]
                 (for(key <- keyIter) yield (key -> jsonToScalaType(obj.get(key)))).toMap
             }
-            case s: String => s
-            case i: Int => i.toDouble
-            case d: Double => d
-            case bd: java.math.BigDecimal => bd.doubleValue
+            case p: JsonPrimitive => {
+                if(p.isJsonNull()) null
+                else if(p.isString()) p.getAsString()
+                else if(p.isNumber()) p.getAsDouble()
+                else if(p.isBoolean()) p.getAsBoolean()
+                else throw new RuntimeException()
+            }
         }
     }
     

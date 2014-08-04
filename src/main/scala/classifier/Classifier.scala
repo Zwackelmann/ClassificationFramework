@@ -63,8 +63,7 @@ object Classifier {
     def stdDev(values: Iterable[Double]) = math.sqrt(variance(values))
 }
 
-@serializable
-abstract class Classifier(val trainBaseContentDescription: Option[ContentDescription], val targetClassDef: CategoryIs, val parent: Option[Learner]) {
+abstract class Classifier(val trainBaseContentDescription: Option[ContentDescription], val targetClassDef: CategoryIs, val parent: Option[Learner]) extends Serializable {
     import RawClassification._
     
     def this(trainBase: ArffJsonInstancesSource, categoryIs: CategoryIs, parent: Option[Learner]) = this(

@@ -6,8 +6,7 @@ import common.FileManager
 import FileManager.Protocol._
 import java.io.File
 
-@serializable
-trait FilterFactory {
+trait FilterFactory extends Serializable {
     def apply(trainBase: ArffJsonInstancesSource): Filter
     val historyAppendix: String
 }

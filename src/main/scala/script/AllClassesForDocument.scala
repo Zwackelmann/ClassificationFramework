@@ -23,6 +23,7 @@ import filter.SelectionFilter
 import classifier.CategoryIsMsc
 import classifier.CategorizationHierarchy
 import classifier.CategoryIsMscSome
+import common.Gson
 
 object AllClassesForDocument {
     def main(args: Array[String]) {
@@ -103,7 +104,7 @@ object AllClassesForDocument {
             depth
         )
         
-        val header = ArffJsonHeader.jsonToArffJsonHeader("""{"relation-name" : "final_format", "attributes" : [{"name" : "title", "type" : "string"}, {"name" : "abstract", "type" : "string"}, {"name" : "journals", "type" : "string"}, {"name" : "terms", "type" : "string"}]}""")
+        val header = Gson.fromJson("""{"relation-name" : "final_format", "attributes" : [{"name" : "title", "type" : "string"}, {"name" : "abstract", "type" : "string"}, {"name" : "journals", "type" : "string"}, {"name" : "terms", "type" : "string"}]}""", classOf[ArffJsonHeader])
         new AllClassesForDocument(toolsets, header)
     }
 
@@ -197,7 +198,7 @@ class AllClassesForDocument(toolset: Map[CategoryIs with CategorizationHierarchy
     }
     
     def categoryCertainies(title: String, abstractText: String): List[(String, Double)] = {
-        def escape(str: String) = str.replaceAll("\\s+", " ").replaceAllLiterally("\\", "\\\\").replaceAllLiterally("\"", "\\\"")
+        def escape  (str: String) = str.replaceAll("\\s+", " ").replaceAllLiterally("\\", "\\\\").replaceAllLiterally("\"", "\\\"")
         
         categoryCertainies(ArffJsonInstance(
             """[["",[]],["%s","%s",[],[]]]""".format(escape(title), escape(abstractText)),

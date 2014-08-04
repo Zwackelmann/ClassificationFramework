@@ -39,8 +39,7 @@ object Path {
     implicit def pathToFilename(path: Path) = path.fullPath
 }
 
-@serializable
-class Path(val relativePath: String) {
+class Path(val relativePath: String) extends Serializable {
     import Path._
     
     def file = new File(fullPath())

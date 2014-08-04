@@ -45,8 +45,7 @@ object Learner {
         Path.classifierPath / classifierFilename(trainBaseCD, categoryIs, parent)
 }
 
-@serializable
-trait Learner {
+trait Learner extends Serializable {
     import RawClassification._
     import common.Common.verbosity
     
